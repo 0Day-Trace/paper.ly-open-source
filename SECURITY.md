@@ -6,7 +6,7 @@
 
 If you discover a security issue — including things like path traversal in file handling, credential exposure, authentication bypass, or dependency vulnerabilities — please report it privately.
 
-**Contact:** Open a [GitHub Security Advisory](https://github.com/your-username/paper.ly/security/advisories/new) on the repository (GitHub → Security tab → "Report a vulnerability").
+**Contact:** Open a [GitHub Security Advisory](https://github.com/0Day-Trace/paper.ly-open-source/security/advisories/new) on the repository (GitHub → Security tab → "Report a vulnerability").
 
 Include:
 - A description of the vulnerability

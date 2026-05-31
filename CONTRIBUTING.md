@@ -9,7 +9,7 @@ Thanks for taking the time to contribute. This document explains how the project
 ### Fork and clone
 
 ```bash
-git clone https://github.com/your-username/paper.ly.git
+git clone https://github.com/0Day-Trace/paper.ly-open-source.git
 cd paper.ly
 ```
 

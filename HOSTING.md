@@ -16,7 +16,7 @@ Copy from `frontend/src/deployment.config.example.json` if starting fresh.
   "organizationName": "Your Company Name",
   "apiBaseUrl": "http://localhost:5000",
   "officialApiUrl": "https://paper-ly.onrender.com",
-  "githubUrl": "https://github.com/your-username/paper.ly",
+  "githubUrl": "https://github.com/0Day-Trace/paper.ly-open-source",
   "limits": {
     "enabled": null,
     "maxFileSizeMb": null,

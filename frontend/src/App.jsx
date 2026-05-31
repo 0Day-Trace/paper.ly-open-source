@@ -11,7 +11,7 @@
  *   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
  */
 
-import React, { useMemo, useRef, useState, useEffect, useLayoutEffect } from 'react'
+import React, { useRef, useState, useEffect, useLayoutEffect } from 'react'
 import { flushSync } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import * as Dialog from '@radix-ui/react-dialog'
@@ -133,14 +133,6 @@ const formatSize = (bytes) => {
   return `${bytes} B`
 }
 
-
-const truncateFilename = (name, max = 32) => {
-  if (!name || name.length <= max) return name
-  const ext = name.includes(".") ? name.slice(name.lastIndexOf(".")) : ""
-  const base = name.slice(0, name.length - ext.length)
-  const keep = max - ext.length - 2
-  return base.slice(0, Math.ceil(keep / 2)) + "…" + base.slice(-Math.floor(keep / 2)) + ext
-}
 
 const truncateMiddle = (name, threshold = 10) => {
   if (!name) return name
@@ -1324,7 +1316,7 @@ const RecentSheet = ({ open, onClose, theme }) => {
   const config = useServerConfig()
   const retentionHours = getRetentionHours(config)
   const recentSubtitle = getRecentFilesSubtitle(config)
-  const { accent, title, message } = getStorageNotice(config)
+  getStorageNotice(config)
   const [files, setFiles] = useState([])
   const [loading, setLoading] = useState(false)
   const [qrFile, setQrFile] = useState(null)

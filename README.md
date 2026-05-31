@@ -42,7 +42,7 @@ A privacy-first, open-source PDF toolkit. Process documents in your browser — 
 ### 1. Clone and start the backend
 
 ```bash
-git clone https://github.com/your-username/paper.ly.git
+git clone https://github.com/0Day-Trace/paper.ly-open-source.git
 cd paper.ly/backend
 
 python -m venv .venv
@@ -80,7 +80,7 @@ Edit one file: **`frontend/src/deployment.config.json`**
   "deployment": "auto",
   "organizationName": "your organization",
   "apiBaseUrl": "http://localhost:5000",
-  "githubUrl": "https://github.com/your-username/paper.ly",
+  "githubUrl": "https://github.com/0Day-Trace/paper.ly-open-source",
   "limits": {
     "enabled": null,
     "maxFileSizeMb": null,
