@@ -1,0 +1,17 @@
+{
+  "deployment": "auto",
+  "organizationName": "your organization",
+  "apiBaseUrl": "http://localhost:5000",
+  "officialApiUrl": "https://paper-ly.onrender.com",
+  "githubUrl": "https://github.com/your-username/paper.ly",
+  "limits": {
+    "enabled": null,
+    "maxFileSizeMb": null,
+    "dailyFileLimit": null,
+    "retentionHours": null
+  },
+  "ui": {
+    "organizationAccent": "#D97706",
+    "selfhostAccent": "#0D9488"
+  }
+}

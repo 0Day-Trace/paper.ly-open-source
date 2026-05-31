@@ -1,0 +1,9 @@
+[phases.setup]
+nixPkgs = ["libreoffice-bin", "python311"]
+
+[phases.install]
+cmds = ["pip install --upgrade pip", "pip install -r requirements.txt"]
+
+[start]
+# Add the LibreOffice bin directory explicitly
+cmd = "export PATH=$PATH:/nix/store/*-libreoffice-*/bin && which soffice && soffice --version && gunicorn app:app --bind 0.0.0.0:$PORT"
