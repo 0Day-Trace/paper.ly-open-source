@@ -709,7 +709,7 @@ def _pdf_to_images_output(pdf_path, file_name, img_fmt, user_id, tool):
     try:
         if len(doc) == 1:
             pix = doc[0].get_pixmap(matrix=mat)
-            out_name = f"{file_name}{ext}"
+            out_name = f"{file_name}{ext}"F
             out_path = f"{OUTPUT_FOLDER}/{out_id}_{out_name}"
             save_pixmap(pix, out_path, img_fmt)
             return finish(out_path, user_id, out_name, tool=tool)
@@ -1053,7 +1053,12 @@ def image_to_pdf():
                 [p for _, p in saved_img_paths],
                 paper_size, orientation, margin, out_path
             )
-            return finish(out_path, user_id, out_name, tool="Image to PDF")
+            compressed_path = f"{OUTPUT_FOLDER}/{uuid.uuid4().hex}_c_{out_name}"
+            _recompress_images(out_path, compressed_path,
+                               quality=_COMPRESS_PRESETS["ebook"]["quality"],
+                               max_dpi=_COMPRESS_PRESETS["ebook"]["max_dpi"])
+            cleanup(out_path)
+            return finish(compressed_path, user_id, out_name, tool="Image to PDF")
 
         else:  # separate → one PDF per image, zipped
             pdf_paths = []
@@ -1063,7 +1068,12 @@ def image_to_pdf():
                     pdf_name = f"{base}.pdf"
                     pdf_out  = f"{OUTPUT_FOLDER}/{uuid.uuid4().hex}_{pdf_name}"
                     _build_img_pdf([img_path], paper_size, orientation, margin, pdf_out)
-                    pdf_paths.append((pdf_name, pdf_out))
+                    compressed_out = f"{OUTPUT_FOLDER}/{uuid.uuid4().hex}_c_{pdf_name}"
+                    _recompress_images(pdf_out, compressed_out,
+                                       quality=_COMPRESS_PRESETS["ebook"]["quality"],
+                                       max_dpi=_COMPRESS_PRESETS["ebook"]["max_dpi"])
+                    cleanup(pdf_out)
+                    pdf_paths.append((pdf_name, compressed_out))
 
                 zip_name = "images_to_pdf.zip"
                 zip_path = f"{OUTPUT_FOLDER}/{uuid.uuid4().hex}_{zip_name}"
