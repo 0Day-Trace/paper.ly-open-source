@@ -412,9 +412,6 @@ def _recompress_images(pdf_path: str, output_path: str, quality: int = 60, max_d
                     continue  # skip — don't write a blank over the original
                 w, h = pil_img.size
                 max_px = max_dpi * 8  # ~8-inch page width at target DPI
-                # Skip images already within DPI target — no quality loss
-                if w <= max_px and h <= max_px:
-                    continue
                 if w > max_px or h > max_px:
                     scale = max_px / max(w, h)
                     pil_img = pil_img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
