@@ -273,7 +273,10 @@ def merge():
         pdf_1.save(output_path, garbage=True)
         pdf_1.close()
         pdf_1 = None
-        return finish(output_path, user_id, "merged.pdf", tool="Merge PDF")
+        compressed_path = f"{OUTPUT_FOLDER}/{uuid.uuid4().hex}_c_merged.pdf"
+        _recompress_images(output_path, compressed_path, quality=85, max_dpi=150)
+        cleanup(output_path)
+        return finish(compressed_path, user_id, "merged.pdf", tool="Merge PDF")
     except Exception as e:
         cleanup(output_path)
         return jsonify({"error": str(e)}), 500
@@ -411,11 +414,12 @@ def _recompress_images(pdf_path: str, output_path: str, quality: int = 60, max_d
                 if pil_img is None or pil_img.size == (0, 0):
                     continue  # skip — don't write a blank over the original
                 w, h = pil_img.size
-                max_px = max_dpi * 8  # ~8-inch page width at target DPI
+                max_px = max_dpi * 8
+                if w <= max_px and h <= max_px:
+                    continue  # skip already small images
                 if w > max_px or h > max_px:
                     scale = max_px / max(w, h)
                     pil_img = pil_img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
-                # JPEG can't handle alpha — flatten to white background
                 if pil_img.mode in ("RGBA", "LA", "P"):
                     bg = Image.new("RGB", pil_img.size, (255, 255, 255))
                     pil_img = pil_img.convert("RGBA")
@@ -863,7 +867,10 @@ def rotate_pdf():
             doc.save(output_path)
         finally:
             doc.close()
-        return finish(output_path, user_id, f"{file_name}_rotated.pdf", tool="Rotate PDF")
+        compressed_path = f"{OUTPUT_FOLDER}/{uuid.uuid4().hex}_c_{file_name}_rotated.pdf"
+        _recompress_images(output_path, compressed_path, quality=85, max_dpi=150)
+        cleanup(output_path)
+        return finish(compressed_path, user_id, f"{file_name}_rotated.pdf", tool="Rotate PDF")
     except Exception as e:
         cleanup(output_path)
         return jsonify({"error": str(e)}), 500
@@ -953,14 +960,8 @@ def _build_img_pdf(img_paths, paper_size, orientation, margin_name, output_path)
                 else:
                     pil = pil.convert("RGB")
             img_w, img_h = float(pil.width), float(pil.height)
-            # Resize if exceeds target DPI before embedding
-            MAX_PX = 150 * 8  # ebook preset: 150dpi * ~8-inch page
-            if max(pil.width, pil.height) > MAX_PX:
-                scale = MAX_PX / max(pil.width, pil.height)
-                pil = pil.resize((int(pil.width * scale), int(pil.height * scale)), PilImage.LANCZOS)
-                img_w, img_h = float(pil.width), float(pil.height)
             buf = io.BytesIO()
-            pil.save(buf, format="JPEG", quality=60)
+            pil.save(buf, format="PNG")
             buf.seek(0)
             pix = pymupdf.Pixmap(buf.read())
         except Exception:
@@ -1057,12 +1058,15 @@ def image_to_pdf():
                 [p for _, p in saved_img_paths],
                 paper_size, orientation, margin, out_path
             )
-            compressed_path = f"{OUTPUT_FOLDER}/{uuid.uuid4().hex}_c_{out_name}"
-            _recompress_images(out_path, compressed_path,
-                               quality=_COMPRESS_PRESETS["ebook"]["quality"],
-                               max_dpi=_COMPRESS_PRESETS["ebook"]["max_dpi"])
-            cleanup(out_path)
-            return finish(compressed_path, user_id, out_name, tool="Image to PDF")
+            # Only compress if output exceeds 5MB — skip on small batches to save time
+            if os.path.getsize(out_path) > 5 * 1024 * 1024:
+                compressed_path = f"{OUTPUT_FOLDER}/{uuid.uuid4().hex}_c_{out_name}"
+                _recompress_images(out_path, compressed_path,
+                                   quality=_COMPRESS_PRESETS["ebook"]["quality"],
+                                   max_dpi=_COMPRESS_PRESETS["ebook"]["max_dpi"])
+                cleanup(out_path)
+                return finish(compressed_path, user_id, out_name, tool="Image to PDF")
+            return finish(out_path, user_id, out_name, tool="Image to PDF")
 
         else:  # separate → one PDF per image, zipped
             pdf_paths = []
@@ -1072,12 +1076,15 @@ def image_to_pdf():
                     pdf_name = f"{base}.pdf"
                     pdf_out  = f"{OUTPUT_FOLDER}/{uuid.uuid4().hex}_{pdf_name}"
                     _build_img_pdf([img_path], paper_size, orientation, margin, pdf_out)
-                    compressed_out = f"{OUTPUT_FOLDER}/{uuid.uuid4().hex}_c_{pdf_name}"
-                    _recompress_images(pdf_out, compressed_out,
-                                       quality=_COMPRESS_PRESETS["ebook"]["quality"],
-                                       max_dpi=_COMPRESS_PRESETS["ebook"]["max_dpi"])
-                    cleanup(pdf_out)
-                    pdf_paths.append((pdf_name, compressed_out))
+                    if os.path.getsize(pdf_out) > 5 * 1024 * 1024:
+                        compressed_out = f"{OUTPUT_FOLDER}/{uuid.uuid4().hex}_c_{pdf_name}"
+                        _recompress_images(pdf_out, compressed_out,
+                                           quality=_COMPRESS_PRESETS["ebook"]["quality"],
+                                           max_dpi=_COMPRESS_PRESETS["ebook"]["max_dpi"])
+                        cleanup(pdf_out)
+                        pdf_paths.append((pdf_name, compressed_out))
+                    else:
+                        pdf_paths.append((pdf_name, pdf_out))
 
                 zip_name = "images_to_pdf.zip"
                 zip_path = f"{OUTPUT_FOLDER}/{uuid.uuid4().hex}_{zip_name}"
