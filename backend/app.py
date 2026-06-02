@@ -956,7 +956,7 @@ def _build_img_pdf(img_paths, paper_size, orientation, margin_name, output_path)
                     pil = pil.convert("RGB")
             img_w, img_h = float(pil.width), float(pil.height)
             buf = io.BytesIO()
-            pil.save(buf, format="PNG")
+            pil.save(buf, format="JPEG", quality=75)
             buf.seek(0)
             pix = pymupdf.Pixmap(buf.read())
         except Exception:
@@ -1053,12 +1053,7 @@ def image_to_pdf():
                 [p for _, p in saved_img_paths],
                 paper_size, orientation, margin, out_path
             )
-            compressed_path = f"{OUTPUT_FOLDER}/{uuid.uuid4().hex}_c_{out_name}"
-            _recompress_images(out_path, compressed_path,
-                               quality=_COMPRESS_PRESETS["ebook"]["quality"],
-                               max_dpi=_COMPRESS_PRESETS["ebook"]["max_dpi"])
-            cleanup(out_path)
-            return finish(compressed_path, user_id, out_name, tool="Image to PDF")
+            return finish(out_path, user_id, out_name, tool="Image to PDF")
 
         else:  # separate → one PDF per image, zipped
             pdf_paths = []
@@ -1068,12 +1063,7 @@ def image_to_pdf():
                     pdf_name = f"{base}.pdf"
                     pdf_out  = f"{OUTPUT_FOLDER}/{uuid.uuid4().hex}_{pdf_name}"
                     _build_img_pdf([img_path], paper_size, orientation, margin, pdf_out)
-                    compressed_out = f"{OUTPUT_FOLDER}/{uuid.uuid4().hex}_c_{pdf_name}"
-                    _recompress_images(pdf_out, compressed_out,
-                                       quality=_COMPRESS_PRESETS["ebook"]["quality"],
-                                       max_dpi=_COMPRESS_PRESETS["ebook"]["max_dpi"])
-                    cleanup(pdf_out)
-                    pdf_paths.append((pdf_name, compressed_out))
+                    pdf_paths.append((pdf_name, pdf_out))
 
                 zip_name = "images_to_pdf.zip"
                 zip_path = f"{OUTPUT_FOLDER}/{uuid.uuid4().hex}_{zip_name}"
