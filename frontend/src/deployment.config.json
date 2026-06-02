@@ -5,10 +5,10 @@
   "officialApiUrl": "https://paper-ly.onrender.com",
   "githubUrl": "https://github.com/0Day-Trace/paper.ly-open-source",
   "limits": {
-    "enabled": true,
-    "maxFileSizeMb": 200,
-    "dailyFileLimit": 10,
-    "retentionHours": 6
+    "enabled": false,
+    "maxFileSizeMb": null,
+    "dailyFileLimit": null,
+    "retentionHours": null
   },
   "advanced": {
     "flaskUploadLimitMb": 210,
