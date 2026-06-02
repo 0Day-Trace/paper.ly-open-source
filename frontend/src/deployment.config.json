@@ -1,7 +1,7 @@
 {
   "deployment": "official",
   "organizationName": "paper.ly",
-  "apiBaseUrl": "https://paper-ly.onrender.com0",
+  "apiBaseUrl": "https://paper-ly.onrender.com",
   "officialApiUrl": "https://paper-ly.onrender.com",
   "githubUrl": "https://github.com/0Day-Trace/paper.ly-open-source",
   "limits": {
