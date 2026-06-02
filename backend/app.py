@@ -709,7 +709,7 @@ def _pdf_to_images_output(pdf_path, file_name, img_fmt, user_id, tool):
     try:
         if len(doc) == 1:
             pix = doc[0].get_pixmap(matrix=mat)
-            out_name = f"{file_name}{ext}"F
+            out_name = f"{file_name}{ext}"
             out_path = f"{OUTPUT_FOLDER}/{out_id}_{out_name}"
             save_pixmap(pix, out_path, img_fmt)
             return finish(out_path, user_id, out_name, tool=tool)
