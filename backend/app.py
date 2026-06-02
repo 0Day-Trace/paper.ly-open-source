@@ -394,10 +394,6 @@ def _recompress_images(pdf_path: str, output_path: str, quality: int = 60, max_d
     for page in reader.pages:
         writer.add_page(page)
 
-    # zlib-compress text/vector content streams (low RAM, moderate win)
-    for page in writer.pages:
-        page.compress_content_streams()
-
     writer.add_metadata({
         "/Producer": "",
         "/Creator": "",
@@ -412,8 +408,13 @@ def _recompress_images(pdf_path: str, output_path: str, quality: int = 60, max_d
         for img_ref in page.images:
             try:
                 pil_img = img_ref.image
+                if pil_img is None or pil_img.size == (0, 0):
+                    continue  # skip — don't write a blank over the original
                 w, h = pil_img.size
                 max_px = max_dpi * 8  # ~8-inch page width at target DPI
+                # Skip images already within DPI target — no quality loss
+                if w <= max_px and h <= max_px:
+                    continue
                 if w > max_px or h > max_px:
                     scale = max_px / max(w, h)
                     pil_img = pil_img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
@@ -955,8 +956,14 @@ def _build_img_pdf(img_paths, paper_size, orientation, margin_name, output_path)
                 else:
                     pil = pil.convert("RGB")
             img_w, img_h = float(pil.width), float(pil.height)
+            # Resize if exceeds target DPI before embedding
+            MAX_PX = 150 * 8  # ebook preset: 150dpi * ~8-inch page
+            if max(pil.width, pil.height) > MAX_PX:
+                scale = MAX_PX / max(pil.width, pil.height)
+                pil = pil.resize((int(pil.width * scale), int(pil.height * scale)), PilImage.LANCZOS)
+                img_w, img_h = float(pil.width), float(pil.height)
             buf = io.BytesIO()
-            pil.save(buf, format="JPEG", quality=75)
+            pil.save(buf, format="JPEG", quality=60)
             buf.seek(0)
             pix = pymupdf.Pixmap(buf.read())
         except Exception:
@@ -1053,7 +1060,12 @@ def image_to_pdf():
                 [p for _, p in saved_img_paths],
                 paper_size, orientation, margin, out_path
             )
-            return finish(out_path, user_id, out_name, tool="Image to PDF")
+            compressed_path = f"{OUTPUT_FOLDER}/{uuid.uuid4().hex}_c_{out_name}"
+            _recompress_images(out_path, compressed_path,
+                               quality=_COMPRESS_PRESETS["ebook"]["quality"],
+                               max_dpi=_COMPRESS_PRESETS["ebook"]["max_dpi"])
+            cleanup(out_path)
+            return finish(compressed_path, user_id, out_name, tool="Image to PDF")
 
         else:  # separate → one PDF per image, zipped
             pdf_paths = []
@@ -1063,7 +1075,12 @@ def image_to_pdf():
                     pdf_name = f"{base}.pdf"
                     pdf_out  = f"{OUTPUT_FOLDER}/{uuid.uuid4().hex}_{pdf_name}"
                     _build_img_pdf([img_path], paper_size, orientation, margin, pdf_out)
-                    pdf_paths.append((pdf_name, pdf_out))
+                    compressed_out = f"{OUTPUT_FOLDER}/{uuid.uuid4().hex}_c_{pdf_name}"
+                    _recompress_images(pdf_out, compressed_out,
+                                       quality=_COMPRESS_PRESETS["ebook"]["quality"],
+                                       max_dpi=_COMPRESS_PRESETS["ebook"]["max_dpi"])
+                    cleanup(pdf_out)
+                    pdf_paths.append((pdf_name, compressed_out))
 
                 zip_name = "images_to_pdf.zip"
                 zip_path = f"{OUTPUT_FOLDER}/{uuid.uuid4().hex}_{zip_name}"
