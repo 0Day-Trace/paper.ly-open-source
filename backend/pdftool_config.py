@@ -75,15 +75,18 @@ def get_max_file_size() -> Optional[int]:
             return int(raw) * 1024 * 1024
         except ValueError:
             pass
-    file_mb = _limits_from_file().get("maxFileSizeMb")
-    if file_mb is not None:
+    if not limits_enabled():
+        return None
+    limits = _limits_from_file()
+    if "maxFileSizeMb" in limits:
+        file_mb = limits["maxFileSizeMb"]
+        if file_mb is None:
+            return None  # explicitly set to null → no size limit
         try:
             return int(file_mb) * 1024 * 1024
         except (ValueError, TypeError):
             pass
-    if limits_enabled():
-        return 200 * 1024 * 1024
-    return None
+    return 200 * 1024 * 1024  # key absent → official default
 
 
 def get_daily_file_limit() -> Optional[int]:
@@ -93,15 +96,18 @@ def get_daily_file_limit() -> Optional[int]:
             return int(raw)
         except ValueError:
             pass
-    file_limit = _limits_from_file().get("dailyFileLimit")
-    if file_limit is not None:
+    if not limits_enabled():
+        return None
+    limits = _limits_from_file()
+    if "dailyFileLimit" in limits:
+        file_limit = limits["dailyFileLimit"]
+        if file_limit is None:
+            return None  # explicitly set to null → no daily limit
         try:
             return int(file_limit)
         except (ValueError, TypeError):
             pass
-    if limits_enabled():
-        return 10
-    return None
+    return 10  # key absent → official default
 
 
 def get_retention_hours() -> Optional[int]:
@@ -111,15 +117,18 @@ def get_retention_hours() -> Optional[int]:
             return int(raw)
         except ValueError:
             pass
-    file_hours = _limits_from_file().get("retentionHours")
-    if file_hours is not None:
+    if not limits_enabled():
+        return None
+    limits = _limits_from_file()
+    if "retentionHours" in limits:
+        file_hours = limits["retentionHours"]
+        if file_hours is None:
+            return None  # explicitly set to null → no retention/expiry
         try:
             return int(file_hours)
         except (ValueError, TypeError):
             pass
-    if get_deployment() == "official":
-        return 6
-    return None
+    return 6  # key absent → official default
 
 
 def _advanced_from_file() -> dict:
