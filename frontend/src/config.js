@@ -177,7 +177,7 @@ export function getStorageNotice(config) {
   return {
     mode: 'official',
     title: 'Temporary storage',
-    message: 'Files are available for 6 hours, then automatically deleted.',
+    message: `Files are available for ${getRetentionHours(config) ?? 6} hours, then automatically deleted.`,
     accent: 'var(--accent)',
   }
 }
@@ -186,7 +186,8 @@ export function getRecentFilesSubtitle(config) {
   const mode = resolveDeployment(config)
   const orgName = getOrgDisplayName(config)
   if (mode === 'official') {
-    return 'Available for 6 hours'
+    const hours = getRetentionHours(config)
+    return hours != null ? `Available for ${hours} hours` : 'Temporarily stored'
   }
   if (mode === 'selfhost') {
     return 'Managed by your self-hosted server'
@@ -198,6 +199,7 @@ export function getToolActionNotice(config) {
   if (resolveDeployment(config) !== 'official' && getRetentionHours(config) == null) {
     return null
   }
-  const hours = getRetentionHours(config) ?? 6
+  const hours = getRetentionHours(config)
+  if (hours == null) return null
   return `Files are automatically deleted after ${hours} hours.`
 }
