@@ -174,10 +174,19 @@ export function getStorageNotice(config) {
     }
   }
 
+  const retentionHours = getRetentionHours(config)
+  if (!config?.limits_enabled || retentionHours == null) {
+    return {
+      mode: 'official',
+      title: 'Temporary storage',
+      message: 'Files are stored temporarily and will be deleted.',
+      accent: 'var(--accent)',
+    }
+  }
   return {
     mode: 'official',
     title: 'Temporary storage',
-    message: `Files are available for ${getRetentionHours(config) ?? 6} hours, then automatically deleted.`,
+    message: `Files are available for ${retentionHours} hours, then automatically deleted.`,
     accent: 'var(--accent)',
   }
 }
@@ -186,6 +195,7 @@ export function getRecentFilesSubtitle(config) {
   const mode = resolveDeployment(config)
   const orgName = getOrgDisplayName(config)
   if (mode === 'official') {
+    if (!config?.limits_enabled) return 'Stored temporarily'
     const hours = getRetentionHours(config)
     return hours != null ? `Available for ${hours} hours` : 'Temporarily stored'
   }
@@ -196,9 +206,7 @@ export function getRecentFilesSubtitle(config) {
 }
 
 export function getToolActionNotice(config) {
-  if (resolveDeployment(config) !== 'official' && getRetentionHours(config) == null) {
-    return null
-  }
+  if (!config?.limits_enabled) return null
   const hours = getRetentionHours(config)
   if (hours == null) return null
   return `Files are automatically deleted after ${hours} hours.`
