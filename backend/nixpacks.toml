@@ -5,5 +5,4 @@ nixPkgs = ["libreoffice-bin", "python311"]
 cmds = ["pip install --upgrade pip", "pip install -r requirements.txt"]
 
 [start]
-# Add the LibreOffice bin directory explicitly
-cmd = "export PATH=$PATH:/nix/store/*-libreoffice-*/bin && which soffice && soffice --version && gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 180"
+cmd = "export PATH=$PATH:/nix/store/*-libreoffice-*/bin && gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 150"

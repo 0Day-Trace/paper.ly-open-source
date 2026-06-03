@@ -88,24 +88,31 @@ export function resolveDeployment(config) {
 function buildDefaultConfig() {
   const deployment = detectClientDeployment()
   const limits = DEPLOYMENT_SETTINGS.limits || {}
-  const limitsEnabled = limits.enabled != null
+  const hasLimitsKey = Object.prototype.hasOwnProperty.call(DEPLOYMENT_SETTINGS, 'limits')
+
+  // If limits block exists in config, use its enabled flag exactly.
+  // If limits block is absent entirely, default to true for official, false otherwise.
+  const limitsEnabled = hasLimitsKey
     ? Boolean(limits.enabled)
     : deployment === 'official'
+
+  // If limits are disabled, all 3 sub-values are irrelevant — force null.
+  // If limits are enabled, read from config (preserving explicit null) before
+  // falling back to the official-deployment defaults.
+  const has = (key) => Object.prototype.hasOwnProperty.call(limits, key)
+
+  const retention_hours  = !limitsEnabled ? null : has('retentionHours') ? limits.retentionHours  : (deployment === 'official' ? 6   : null)
+  const max_file_size_mb = !limitsEnabled ? null : has('maxFileSizeMb')  ? limits.maxFileSizeMb   : (deployment === 'official' ? 200 : null)
+  const daily_file_limit = !limitsEnabled ? null : has('dailyFileLimit') ? limits.dailyFileLimit  : (deployment === 'official' ? 10  : null)
 
   return {
     deployment,
     organization_name: ORG_DISPLAY_NAME,
     storage_mode: 'local',
     limits_enabled: limitsEnabled,
-    retention_hours: limits.retentionHours != null
-      ? limits.retentionHours
-      : (deployment === 'official' ? 6 : null),
-    max_file_size_mb: limits.maxFileSizeMb != null
-      ? limits.maxFileSizeMb
-      : (deployment === 'official' ? 200 : null),
-    daily_file_limit: limits.dailyFileLimit != null
-      ? limits.dailyFileLimit
-      : (deployment === 'official' ? 10 : null),
+    retention_hours,
+    max_file_size_mb,
+    daily_file_limit,
     ui: UI,
   }
 }
@@ -174,10 +181,19 @@ export function getStorageNotice(config) {
     }
   }
 
+  const retentionHours = getRetentionHours(config)
+  if (!config?.limits_enabled || retentionHours == null) {
+    return {
+      mode: 'official',
+      title: 'Temporary storage',
+      message: 'Files are stored temporarily and will be deleted.',
+      accent: 'var(--accent)',
+    }
+  }
   return {
     mode: 'official',
     title: 'Temporary storage',
-    message: 'Files are available for 6 hours, then automatically deleted.',
+    message: `Files are available for ${retentionHours} hours, then automatically deleted.`,
     accent: 'var(--accent)',
   }
 }
@@ -186,7 +202,9 @@ export function getRecentFilesSubtitle(config) {
   const mode = resolveDeployment(config)
   const orgName = getOrgDisplayName(config)
   if (mode === 'official') {
-    return 'Available for 6 hours'
+    if (!config?.limits_enabled) return 'Stored temporarily'
+    const hours = getRetentionHours(config)
+    return hours != null ? `Available for ${hours} hours` : 'Temporarily stored'
   }
   if (mode === 'selfhost') {
     return 'Managed by your self-hosted server'
@@ -195,9 +213,8 @@ export function getRecentFilesSubtitle(config) {
 }
 
 export function getToolActionNotice(config) {
-  if (resolveDeployment(config) !== 'official' && getRetentionHours(config) == null) {
-    return null
-  }
-  const hours = getRetentionHours(config) ?? 6
+  if (!config?.limits_enabled) return null
+  const hours = getRetentionHours(config)
+  if (hours == null) return null
   return `Files are automatically deleted after ${hours} hours.`
 }
