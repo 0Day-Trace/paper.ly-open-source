@@ -14,4 +14,6 @@ pillow==12.2.0
 PyMuPDF==1.27.2.3
 pypdf==6.12.2
 Werkzeug==3.1.8
+img2pdf==0.6.3
 supabase
+
