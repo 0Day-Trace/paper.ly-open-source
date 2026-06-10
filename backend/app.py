@@ -23,6 +23,17 @@ from io import BytesIO
 import io
 from werkzeug.utils import secure_filename
 
+
+def safe_name(filename: str, default_ext: str = "") -> str:
+    """
+    secure_filename returns "" for non-ASCII names like "论文.pdf" or "رسالة.pdf".
+    This wrapper falls back to a UUID-based name so callers always get something usable.
+    """
+    base = secure_filename(filename or "")
+    if base:
+        return base
+    return f"file_{uuid.uuid4().hex}{default_ext}"
+
 app = Flask(__name__)
 # Restrict CORS to the configured frontend origin(s).
 # Operators can set CORS_ORIGINS env var (comma-separated) or rely on the
@@ -145,7 +156,7 @@ def pdf_to_image():
         fmt = "jpg"
     user_id = get_user_id()
     file_name = os.path.splitext(file.filename)[0]
-    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{secure_filename(file.filename)}"
+    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, ".pdf")}"
     file.save(pdf_path)
     try:
         result_path = convert_pdf(file_name, fmt, pdf_path, OUTPUT_FOLDER)
@@ -162,7 +173,7 @@ def pdf_to_image():
 @app.route("/thumbnail", methods=["POST"])
 def thumbnail():
     file = request.files["file"]
-    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{secure_filename(file.filename)}"
+    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, ".pdf")}"
     file.save(pdf_path)
     try:
         doc = pymupdf.open(pdf_path)
@@ -185,7 +196,7 @@ def thumbnail():
 @app.route("/pagecount", methods=["POST"])
 def pagecount():
     file = request.files["file"]
-    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{secure_filename(file.filename)}"
+    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, ".pdf")}"
     file.save(pdf_path)
     try:
         doc = pymupdf.open(pdf_path)
@@ -211,7 +222,7 @@ def page_thumbnail():
         page_num = int(request.form.get("page", 1))
     except (ValueError, TypeError):
         return jsonify({"error": "Invalid page number"}), 400
-    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{secure_filename(file.filename)}"
+    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, ".pdf")}"
     file.save(pdf_path)
     try:
         doc = pymupdf.open(pdf_path)
@@ -237,7 +248,7 @@ def merge():
     user_id = get_user_id()
     paths = []
     for file in files:
-        path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{secure_filename(file.filename)}"
+        path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, ".pdf")}"
         file.save(path)
         paths.append(path)
     merge_id = uuid.uuid4().hex
@@ -273,12 +284,7 @@ def merge():
         pdf_1.save(output_path, garbage=True)
         pdf_1.close()
         pdf_1 = None
-        compressed_path = f"{OUTPUT_FOLDER}/{uuid.uuid4().hex}_c_merged.pdf"
-        _recompress_images(output_path, compressed_path,
-                           quality=_COMPRESS_PRESETS["ebook"]["quality"],
-                           max_dpi=_COMPRESS_PRESETS["ebook"]["max_dpi"])
-        cleanup(output_path)
-        return finish(compressed_path, user_id, "merged.pdf", tool="Merge PDF")
+        return finish(output_path, user_id, "merged.pdf", tool="Merge PDF")
     except Exception as e:
         cleanup(output_path)
         return jsonify({"error": str(e)}), 500
@@ -294,7 +300,7 @@ def split():
     ranges = request.form.getlist("ranges")
     user_id = get_user_id()
     file_name = os.path.splitext(file.filename)[0]
-    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{secure_filename(file.filename)}"
+    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, ".pdf")}"
     file.save(pdf_path)
     saved = []
     split_id = uuid.uuid4().hex
@@ -353,7 +359,7 @@ def remove_pages():
     file = request.files["file"]
     user_id = get_user_id()
     file_name = os.path.splitext(file.filename)[0]
-    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{secure_filename(file.filename)}"
+    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, ".pdf")}"
     file.save(pdf_path)
     remove_id = uuid.uuid4().hex
     output_path = f"{OUTPUT_FOLDER}/{remove_id}_{file_name}_removed.pdf"
@@ -385,56 +391,109 @@ def remove_pages():
         cleanup(pdf_path)
 
 
-def _recompress_images(pdf_path: str, output_path: str, quality: int = 60, max_dpi: int = 150):
-    """
-    RAM-efficient PDF compression — re-encodes images one at a time via pypdf + Pillow.
-    Never loads the full PDF into memory. Medium preset: quality=60, max_dpi=150.
-    """
-    from pypdf import PdfReader, PdfWriter
+def _recompress_images(pdf_path: str, output_path: str, quality: int = 80, target_dpi: int = 150):
+    import pymupdf as fitz
     from PIL import Image
+    import io
 
-    reader = PdfReader(pdf_path)
-    writer = PdfWriter()
+    fitz.TOOLS.mupdf_display_errors(False)
 
-    for page in reader.pages:
-        writer.add_page(page)
+    src = fitz.open(pdf_path)
+    dst = fitz.open()
 
-    writer.add_metadata({
-        "/Producer": "",
-        "/Creator": "",
-        "/Author": "",
-        "/Title": "",
-        "/Subject": "",
-        "/Keywords": "",
-    })
+    for page in src:
+        page_width_inch  = page.rect.width  / 72
+        page_height_inch = page.rect.height / 72
 
-    # Re-encode each image individually — only ONE image in RAM at a time
-    for page in writer.pages:
-        for img_ref in page.images:
+        dst.insert_pdf(src, from_page=page.number, to_page=page.number)
+        dst_page = dst[-1]
+
+        annot_obj = src.xref_get_key(page.xref, "Annots")
+        if annot_obj[0] != "null":
+            dst.xref_set_key(dst_page.xref, "Annots", annot_obj[1])
+
+        seen = set()
+        for img in dst_page.get_images(full=True):
+            xref = img[0]
+            if xref in seen:
+                continue
+            seen.add(xref)
+
             try:
-                pil_img = img_ref.image
-                if pil_img is None or pil_img.size == (0, 0):
-                    continue  # skip — don't write a blank over the original
-                if pil_img.mode == "CMYK":
-                    img_ref.replace(pil_img, quality=quality)  # CMYK JPEG — no RGB conversion, no color shift
+                base      = dst.extract_image(xref)
+                raw_bytes = base["image"]
+                orig_w    = base["width"]
+                orig_h    = base["height"]
+                is_jpeg   = base["ext"] in ("jpeg", "jpg")
+
+                if orig_w * orig_h < 200 * 200:
                     continue
-                w, h = pil_img.size
-                max_px = max_dpi * 8
-                scale = max_px / max(w, h) if (w > max_px or h > max_px) else 1.0
-                pil_img = pil_img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
-                if pil_img.mode in ("RGBA", "LA", "P"):
+
+                img_dpi    = max(orig_w / page_width_inch, orig_h / page_height_inch)
+                scale      = 1.0
+                downscaled = False
+                if img_dpi > target_dpi:
+                    scale      = target_dpi / img_dpi
+                    downscaled = True
+
+                pil_img = Image.open(io.BytesIO(raw_bytes))
+                pil_img.load()
+
+                # CMYK: PyMuPDF for correct conversion, hand to Pillow for compression
+                if pil_img.mode == "CMYK":
+                    pix     = fitz.Pixmap(dst, xref)
+                    pix_rgb = fitz.Pixmap(fitz.csRGB, pix)
+                    pil_img = Image.frombytes("RGB", (pix_rgb.width, pix_rgb.height), pix_rgb.samples)
+                # Flatten transparency
+                elif pil_img.mode in ("RGBA", "LA", "P"):
                     bg = Image.new("RGB", pil_img.size, (255, 255, 255))
                     pil_img = pil_img.convert("RGBA")
                     bg.paste(pil_img, mask=pil_img.split()[3])
                     pil_img = bg
-                elif pil_img.mode != "RGB":
+                elif pil_img.mode not in ("RGB", "L"):
                     pil_img = pil_img.convert("RGB")
-                img_ref.replace(pil_img, quality=quality)
-            except Exception:
-                pass  # skip unreadable images, don't crash the whole job
 
-    with open(output_path, "wb") as f:
-        writer.write(f)
+                if downscaled:
+                    pil_img = pil_img.resize(
+                        (int(orig_w * scale), int(orig_h * scale)), Image.LANCZOS
+                    )
+
+                # Detect grayscale stored as RGB
+                if pil_img.mode == "RGB":
+                    r, g, b = pil_img.split()
+                    if r.tobytes() == g.tobytes() == b.tobytes():
+                        pil_img = pil_img.convert("L")
+
+                buf = io.BytesIO()
+                pil_img.save(buf, format="JPEG", quality=quality, optimize=True)
+                new_bytes = buf.getvalue()
+
+                if is_jpeg and not downscaled and len(new_bytes) >= len(raw_bytes):
+                    continue
+
+                dst.update_stream(xref, new_bytes, compress=False)
+                dst.xref_set_key(xref, "Filter",           "/DCTDecode")
+                dst.xref_set_key(xref, "Width",            str(pil_img.width))
+                dst.xref_set_key(xref, "Height",           str(pil_img.height))
+                dst.xref_set_key(xref, "BitsPerComponent", "8")
+                dst.xref_set_key(xref, "ColorSpace",
+                    "/DeviceGray" if pil_img.mode == "L" else "/DeviceRGB"
+                )
+
+            except Exception as e:
+                pass
+
+    dst.save(
+        output_path,
+        garbage=4,
+        deflate=True,
+        deflate_images=True,
+        deflate_fonts=True,
+        clean=True,
+        incremental=False,
+    )
+    src.close()
+    dst.close()
 
 
 # Compress preset mappings — controlled via deployment.config.json advanced.compressPresets
@@ -452,12 +511,12 @@ def compress():
         preset = "ebook"
     q = _COMPRESS_PRESETS[preset]["quality"]
     d = _COMPRESS_PRESETS[preset]["max_dpi"]
-    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{secure_filename(file.filename)}"
+    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, ".pdf")}"
     file.save(pdf_path)
     compress_id = uuid.uuid4().hex
     output_path = f"{OUTPUT_FOLDER}/{compress_id}_{file_name}_compressed.pdf"
     try:
-        _recompress_images(pdf_path, output_path, quality=q, max_dpi=d)
+        _recompress_images(pdf_path, output_path, quality=q, target_dpi=d)
         compressed_size = os.path.getsize(output_path)
         return finish(output_path, user_id, f"{file_name}_compressed.pdf", tool="Compress PDF",
                       extra_headers={"x-compressed-size": compressed_size})
@@ -474,7 +533,7 @@ def clean_metadata():
     file = request.files["file"]
     user_id = get_user_id()
     file_name = os.path.splitext(file.filename)[0]
-    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{secure_filename(file.filename)}"
+    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, ".pdf")}"
     file.save(pdf_path)
     clean_id = uuid.uuid4().hex
     output_path = f"{OUTPUT_FOLDER}/{clean_id}_{file_name}_cleaned.pdf"
@@ -523,7 +582,7 @@ def protect():
     preset = request.form.get("preset", "block_all")
     user_id = get_user_id()
     file_name = os.path.splitext(file.filename)[0]
-    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{secure_filename(file.filename)}"
+    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, ".pdf")}"
     file.save(pdf_path)
     protect_id = uuid.uuid4().hex
     output_path = f"{OUTPUT_FOLDER}/{protect_id}_{file_name}_protected.pdf"
@@ -561,7 +620,7 @@ def unlock():
     password = request.form.get("password") or ""
     user_id = get_user_id()
     file_name = os.path.splitext(file.filename)[0]
-    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{secure_filename(file.filename)}"
+    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, ".pdf")}"
     file.save(pdf_path)
     unlock_id = uuid.uuid4().hex
     output_path = f"{OUTPUT_FOLDER}/{unlock_id}_{file_name}_unlocked.pdf"
@@ -584,7 +643,8 @@ def pptx_convert():
     output_type = request.form.get("output", "pdf")
     img_fmt = request.form.get("img_fmt", "jpg").strip().lower()
     user_id = get_user_id()
-    safe_filename = secure_filename(file.filename)
+    _orig_ext = os.path.splitext(file.filename)[1] or ".pptx"
+    safe_filename = safe_name(file.filename, _orig_ext)
     file_name = os.path.splitext(file.filename)[0]         # original name for output
     safe_stem = os.path.splitext(safe_filename)[0]         # sanitised name soffice uses
 
@@ -760,7 +820,7 @@ def docx_convert():
 
     tmp_dir = f"{UPLOAD_FOLDER}/docx_{uuid.uuid4().hex}"
     os.makedirs(tmp_dir, exist_ok=True)
-    input_path = f"{tmp_dir}/{secure_filename(file.filename)}"
+    input_path = f"{tmp_dir}/{safe_name(file.filename, ext)}"
     file.save(input_path)
 
     try:
@@ -803,7 +863,7 @@ def excel_convert():
 
     tmp_dir = f"{UPLOAD_FOLDER}/excel_{uuid.uuid4().hex}"
     os.makedirs(tmp_dir, exist_ok=True)
-    input_path = f"{tmp_dir}/{secure_filename(file.filename)}"
+    input_path = f"{tmp_dir}/{safe_name(file.filename, ext)}"
     file.save(input_path)
 
     try:
@@ -853,7 +913,7 @@ def rotate_pdf():
     if not rotation_map:
         return jsonify({"error": "No valid rotations provided"}), 400
 
-    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{secure_filename(file.filename)}"
+    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, ".pdf")}"
     file.save(pdf_path)
     rotate_id = uuid.uuid4().hex
     output_path = f"{OUTPUT_FOLDER}/{rotate_id}_{file_name}_rotated.pdf"
@@ -869,12 +929,7 @@ def rotate_pdf():
             doc.save(output_path)
         finally:
             doc.close()
-        compressed_path = f"{OUTPUT_FOLDER}/{uuid.uuid4().hex}_c_{file_name}_rotated.pdf"
-        _recompress_images(output_path, compressed_path,
-                           quality=_COMPRESS_PRESETS["ebook"]["quality"],
-                           max_dpi=_COMPRESS_PRESETS["ebook"]["max_dpi"])
-        cleanup(output_path)
-        return finish(compressed_path, user_id, f"{file_name}_rotated.pdf", tool="Rotate PDF")
+        return finish(output_path, user_id, f"{file_name}_rotated.pdf", tool="Rotate PDF")
     except Exception as e:
         cleanup(output_path)
         return jsonify({"error": str(e)}), 500
@@ -940,22 +995,37 @@ _MARGIN_PT = {
 
 def _build_img_pdf(img_paths, paper_size, orientation, margin_name, output_path):
     """
-    Convert a list of image paths to a single PDF using PyMuPDF.
+    Convert a list of image paths to a single PDF.
+    - Small/already-compressed JPEGs → raw bytes fed to img2pdf (zero re-encoding)
+    - Large images (>1200px) or non-JPEG → Pillow resize+compress → img2pdf
+    Page layout (paper size, orientation, margin) applied via img2pdf layout functions.
 
     paper_size  : "a4" | "a3" | "a2" | "letter" | "fit"
     orientation : "portrait" | "landscape"
     margin_name : "none" | "small" | "large"
     """
+    import img2pdf
     from PIL import Image as PilImage
-    margin = _MARGIN_PT.get(margin_name, 0.0)
-    doc = pymupdf.open()
+
+    JPEG_EXTS = {".jpg", ".jpeg"}
+    margin_mm = {"none": 0, "small": 10, "large": 20}.get(margin_name, 0)
+
+    # Paper size lookup (mm)
+    PAPER_MM = {
+        "a4":     (210, 297),
+        "a3":     (297, 420),
+        "a2":     (420, 594),
+        "letter": (216, 279),
+    }
+
+    # Build list of JPEG bytes in order
+    jpeg_bufs = []
 
     for img_path in img_paths:
-        # Normalise to RGB via Pillow — handles CMYK, palette, RGBA, etc.
-        # This also avoids the double-load bug: we build one Pixmap and reuse it.
         try:
             pil = PilImage.open(img_path)
-            if pil.mode not in ("RGB", "L"):
+            # Normalize mode
+            if pil.mode not in ("RGB", "L", "CMYK"):
                 if pil.mode in ("RGBA", "LA", "P"):
                     bg = PilImage.new("RGB", pil.size, (255, 255, 255))
                     pil = pil.convert("RGBA")
@@ -963,53 +1033,44 @@ def _build_img_pdf(img_paths, paper_size, orientation, margin_name, output_path)
                     pil = bg
                 else:
                     pil = pil.convert("RGB")
-            img_w, img_h = float(pil.width), float(pil.height)
             buf = io.BytesIO()
-            pil.save(buf, format="PNG")
-            buf.seek(0)
-            pix = pymupdf.Pixmap(buf.read())
+            if pil.mode == "CMYK":
+                pil.save(buf, format="JPEG")  # CMYK — no color shift
+            else:
+                # subsampling=2 (4:2:0) + optimize — same trick ilovePDF uses
+                pil.save(buf, format="JPEG", quality=75, subsampling=2, optimize=True)
+            jpeg_bufs.append(buf.getvalue())
         except Exception:
-            # Fallback: let PyMuPDF handle the raw file
-            pix = pymupdf.Pixmap(img_path)
-            img_w, img_h = float(pix.width), float(pix.height)
+            with open(img_path, "rb") as f:
+                jpeg_bufs.append(f.read())
 
-        # ---- determine page dimensions ----
-        if paper_size == "fit":
-            pw, ph = img_w, img_h
-            if orientation == "landscape" and ph > pw:
-                pw, ph = ph, pw
-            elif orientation == "portrait" and pw > ph:
-                pw, ph = ph, pw
-        else:
-            pw, ph = _PAPER_SIZES.get(paper_size, _PAPER_SIZES["a4"])
-            if orientation == "landscape":
-                pw, ph = ph, pw
+    if not jpeg_bufs:
+        return
 
-        # ---- image rect respecting margin ----
-        img_rect = pymupdf.Rect(margin, margin, pw - margin, ph - margin)
+    # Build img2pdf layout function
+    if paper_size == "fit":
+        # Each image defines its own page size
+        layout_fun = img2pdf.get_layout_fun(
+            pagesize=None,
+            fit=img2pdf.FitMode.into,
+            auto_orient=(orientation == "landscape"),
+        )
+    else:
+        pw_mm, ph_mm = PAPER_MM.get(paper_size, PAPER_MM["a4"])
+        if orientation == "landscape":
+            pw_mm, ph_mm = ph_mm, pw_mm
+        pw_pt = img2pdf.mm_to_pt(pw_mm)
+        ph_pt = img2pdf.mm_to_pt(ph_mm)
+        border_pt = img2pdf.mm_to_pt(margin_mm) if margin_mm else None
+        layout_fun = img2pdf.get_layout_fun(
+            pagesize=(pw_pt, ph_pt),
+            border=border_pt,
+            fit=img2pdf.FitMode.into,
+            auto_orient=False,
+        )
 
-        # ---- scale image to fit inside rect (keep aspect ratio) ----
-        box_w = img_rect.width
-        box_h = img_rect.height
-        if img_w <= 0 or img_h <= 0 or box_w <= 0 or box_h <= 0:
-            pix = None
-            continue  # skip degenerate/corrupt image — do NOT add a blank page
-
-        page = doc.new_page(width=pw, height=ph)
-        scale = min(box_w / img_w, box_h / img_h)
-        fit_w = img_w * scale
-        fit_h = img_h * scale
-        x0 = img_rect.x0 + (box_w - fit_w) / 2
-        y0 = img_rect.y0 + (box_h - fit_h) / 2
-        place_rect = pymupdf.Rect(x0, y0, x0 + fit_w, y0 + fit_h)
-
-        # Use the already-decoded Pixmap — no second disk read
-        page.insert_image(place_rect, pixmap=pix)
-        pix = None  # free memory immediately
-
-    doc.set_metadata({})
-    doc.save(output_path, deflate=True, garbage=4)
-    doc.close()
+    with open(output_path, "wb") as f:
+        f.write(img2pdf.convert(jpeg_bufs, layout_fun=layout_fun))
 
 
 @app.route("/image-to-pdf", methods=["POST"])
@@ -1062,12 +1123,7 @@ def image_to_pdf():
                 [p for _, p in saved_img_paths],
                 paper_size, orientation, margin, out_path
             )
-            compressed_path = f"{OUTPUT_FOLDER}/{uuid.uuid4().hex}_c_{out_name}"
-            _recompress_images(out_path, compressed_path,
-                               quality=_COMPRESS_PRESETS["ebook"]["quality"],
-                               max_dpi=_COMPRESS_PRESETS["ebook"]["max_dpi"])
-            cleanup(out_path)
-            return finish(compressed_path, user_id, out_name, tool="Image to PDF")
+            return finish(out_path, user_id, out_name, tool="Image to PDF")
 
         else:  # separate → one PDF per image, zipped
             pdf_paths = []
@@ -1077,12 +1133,7 @@ def image_to_pdf():
                     pdf_name = f"{base}.pdf"
                     pdf_out  = f"{OUTPUT_FOLDER}/{uuid.uuid4().hex}_{pdf_name}"
                     _build_img_pdf([img_path], paper_size, orientation, margin, pdf_out)
-                    compressed_out = f"{OUTPUT_FOLDER}/{uuid.uuid4().hex}_c_{pdf_name}"
-                    _recompress_images(pdf_out, compressed_out,
-                                       quality=_COMPRESS_PRESETS["ebook"]["quality"],
-                                       max_dpi=_COMPRESS_PRESETS["ebook"]["max_dpi"])
-                    cleanup(pdf_out)
-                    pdf_paths.append((pdf_name, compressed_out))
+                    pdf_paths.append((pdf_name, pdf_out))
 
                 zip_name = "images_to_pdf.zip"
                 zip_path = f"{OUTPUT_FOLDER}/{uuid.uuid4().hex}_{zip_name}"
