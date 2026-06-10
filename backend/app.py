@@ -156,7 +156,7 @@ def pdf_to_image():
         fmt = "jpg"
     user_id = get_user_id()
     file_name = os.path.splitext(file.filename)[0]
-    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, ".pdf")}"
+    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, '.pdf')}"
     file.save(pdf_path)
     try:
         result_path = convert_pdf(file_name, fmt, pdf_path, OUTPUT_FOLDER)
@@ -173,7 +173,7 @@ def pdf_to_image():
 @app.route("/thumbnail", methods=["POST"])
 def thumbnail():
     file = request.files["file"]
-    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, ".pdf")}"
+    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, '.pdf')}"
     file.save(pdf_path)
     try:
         doc = pymupdf.open(pdf_path)
@@ -196,7 +196,7 @@ def thumbnail():
 @app.route("/pagecount", methods=["POST"])
 def pagecount():
     file = request.files["file"]
-    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, ".pdf")}"
+    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, '.pdf')}"
     file.save(pdf_path)
     try:
         doc = pymupdf.open(pdf_path)
@@ -222,7 +222,7 @@ def page_thumbnail():
         page_num = int(request.form.get("page", 1))
     except (ValueError, TypeError):
         return jsonify({"error": "Invalid page number"}), 400
-    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, ".pdf")}"
+    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, '.pdf')}"
     file.save(pdf_path)
     try:
         doc = pymupdf.open(pdf_path)
@@ -248,7 +248,7 @@ def merge():
     user_id = get_user_id()
     paths = []
     for file in files:
-        path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, ".pdf")}"
+        path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, '.pdf')}"
         file.save(path)
         paths.append(path)
     merge_id = uuid.uuid4().hex
@@ -300,7 +300,7 @@ def split():
     ranges = request.form.getlist("ranges")
     user_id = get_user_id()
     file_name = os.path.splitext(file.filename)[0]
-    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, ".pdf")}"
+    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, '.pdf')}"
     file.save(pdf_path)
     saved = []
     split_id = uuid.uuid4().hex
@@ -359,7 +359,7 @@ def remove_pages():
     file = request.files["file"]
     user_id = get_user_id()
     file_name = os.path.splitext(file.filename)[0]
-    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, ".pdf")}"
+    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, '.pdf')}"
     file.save(pdf_path)
     remove_id = uuid.uuid4().hex
     output_path = f"{OUTPUT_FOLDER}/{remove_id}_{file_name}_removed.pdf"
@@ -511,7 +511,7 @@ def compress():
         preset = "ebook"
     q = _COMPRESS_PRESETS[preset]["quality"]
     d = _COMPRESS_PRESETS[preset]["max_dpi"]
-    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, ".pdf")}"
+    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, '.pdf')}"
     file.save(pdf_path)
     compress_id = uuid.uuid4().hex
     output_path = f"{OUTPUT_FOLDER}/{compress_id}_{file_name}_compressed.pdf"
@@ -533,7 +533,7 @@ def clean_metadata():
     file = request.files["file"]
     user_id = get_user_id()
     file_name = os.path.splitext(file.filename)[0]
-    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, ".pdf")}"
+    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, '.pdf')}"
     file.save(pdf_path)
     clean_id = uuid.uuid4().hex
     output_path = f"{OUTPUT_FOLDER}/{clean_id}_{file_name}_cleaned.pdf"
@@ -582,7 +582,7 @@ def protect():
     preset = request.form.get("preset", "block_all")
     user_id = get_user_id()
     file_name = os.path.splitext(file.filename)[0]
-    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, ".pdf")}"
+    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, '.pdf')}"
     file.save(pdf_path)
     protect_id = uuid.uuid4().hex
     output_path = f"{OUTPUT_FOLDER}/{protect_id}_{file_name}_protected.pdf"
@@ -620,7 +620,7 @@ def unlock():
     password = request.form.get("password") or ""
     user_id = get_user_id()
     file_name = os.path.splitext(file.filename)[0]
-    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, ".pdf")}"
+    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, '.pdf')}"
     file.save(pdf_path)
     unlock_id = uuid.uuid4().hex
     output_path = f"{OUTPUT_FOLDER}/{unlock_id}_{file_name}_unlocked.pdf"
@@ -913,7 +913,7 @@ def rotate_pdf():
     if not rotation_map:
         return jsonify({"error": "No valid rotations provided"}), 400
 
-    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, ".pdf")}"
+    pdf_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, '.pdf')}"
     file.save(pdf_path)
     rotate_id = uuid.uuid4().hex
     output_path = f"{OUTPUT_FOLDER}/{rotate_id}_{file_name}_rotated.pdf"
