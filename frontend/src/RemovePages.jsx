@@ -23,12 +23,16 @@ function PageButton({ page, active, accent, file, onToggle, firstThumbnail }) {
   const [showPreview, setShowPreview] = useState(false)
   const [thumb, setThumb] = useState(page === 1 ? firstThumbnail : null)
   const [loadingThumb, setLoadingThumb] = useState(false)
+  const [isLandscape, setIsLandscape] = useState(false)
   const fetchedRef = useRef(page === 1 ? true : false)
   const longPressTimer = useRef(null)
   const hideTimer = useRef(null)
   const btnRef = useRef(null)
   const [pos, setPos] = useState({ x: 0, y: 0, above: true })
   const isTouchDevice = typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches
+
+  const cardW = isTouchDevice ? (isLandscape ? 260 : 200) : (isLandscape ? 360 : 300)
+  const imgW = cardW - 16
 
   const fetchThumb = useCallback(async () => {
     if (fetchedRef.current || !file) return
@@ -44,16 +48,25 @@ function PageButton({ page, active, accent, file, onToggle, firstThumbnail }) {
     finally { setLoadingThumb(false) }
   }, [file, page])
 
+  const calcPos = (w) => {
+    if (!btnRef.current) return
+    const r = btnRef.current.getBoundingClientRect()
+    const x = Math.max(w / 2 + 8, Math.min(r.left + r.width / 2, window.innerWidth - w / 2 - 8))
+    const above = r.top > 300
+    setPos({ x, y: above ? r.top - 8 : r.bottom + 8, above })
+  }
+
   const open = () => {
-    if (btnRef.current) {
-      const r = btnRef.current.getBoundingClientRect()
-      const cardW = isTouchDevice ? 200 : 300
-      const x = Math.max(cardW / 2 + 8, Math.min(r.left + r.width / 2, window.innerWidth - cardW / 2 - 8))
-      const above = r.top > 300
-      setPos({ x, y: above ? r.top - 8 : r.bottom + 8, above })
-    }
+    calcPos(cardW)
     setShowPreview(true)
     fetchThumb()
+  }
+
+  const handleImgLoad = (e) => {
+    const landscape = e.target.naturalWidth > e.target.naturalHeight
+    setIsLandscape(landscape)
+    const newCardW = isTouchDevice ? (landscape ? 260 : 200) : (landscape ? 360 : 300)
+    calcPos(newCardW)
   }
 
   const handleMouseEnter = () => { if (!isTouchDevice) { clearTimeout(hideTimer.current); open() } }
@@ -102,26 +115,24 @@ function PageButton({ page, active, accent, file, onToggle, firstThumbnail }) {
               borderRadius: 12,
               padding: 8,
               boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
-              width: isTouchDevice ? 200 : 300,
+              width: cardW,
               maxHeight: 'calc(100vh - 80px)',
               overflow: 'hidden',
               pointerEvents: isTouchDevice ? 'none' : 'auto',
+              transition: 'width 0.15s ease',
             }}
           >
-            <div style={{ width: isTouchDevice ? 184 : 284, borderRadius: 8, background: 'var(--surface-2)', overflow: 'hidden', lineHeight: 0 }}>
+            <div style={{ width: imgW, borderRadius: 8, background: 'var(--surface-2)', overflow: 'hidden', lineHeight: 0 }}>
               {thumb
                 ? <img
                     src={`data:image/jpeg;base64,${thumb}`}
                     alt={`Page ${page}`}
-                    style={{
-                      width: '100%',
-                      height: 'auto',
-                      display: 'block',
-                    }}
+                    onLoad={handleImgLoad}
+                    style={{ width: '100%', height: 'auto', display: 'block' }}
                   />
                 : loadingThumb
-                  ? <div style={{ width: 284, height: 290, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: 20, height: 20, border: '2px solid var(--border)', borderTopColor: accent, borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} /></div>
-                  : <div style={{ width: 284, height: 290, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontSize: 12, color: 'var(--text-3)' }}>—</span></div>
+                  ? <div style={{ width: imgW, height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: 20, height: 20, border: '2px solid var(--border)', borderTopColor: accent, borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} /></div>
+                  : <div style={{ width: imgW, height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontSize: 12, color: 'var(--text-3)' }}>—</span></div>
               }
             </div>
             <p style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--text-3)', textAlign: 'center', fontFamily: 'var(--font-ui)' }}>Page {page}</p>
