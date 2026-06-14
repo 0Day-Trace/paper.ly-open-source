@@ -1,3 +1,4 @@
+from copy import deepcopy
 from flask import Flask, request, send_file, jsonify
 from flask_cors import CORS
 from pdf_to_img import convert_pdf, render_matrix, save_pixmap
@@ -15,13 +16,20 @@ import pikepdf
 import zipfile
 import json
 import gc
+import re
 import subprocess
 import time
 import shutil
 import uuid
 from io import BytesIO
 import io
+from typing import Optional
 from werkzeug.utils import secure_filename
+from reportlab.pdfgen import canvas
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from pypdf import PdfReader, PdfWriter
+import fitz
 
 
 def safe_name(filename: str, default_ext: str = "") -> str:
@@ -100,6 +108,7 @@ _PROCESSING_ROUTES = {
     "/merge", "/split", "/remove-pages", "/compress", "/rotate-pdf",
     "/protect", "/unlock", "/clean-metadata", "/pdf-to-image",
     "/image-to-pdf", "/pptx-convert", "/docx-convert", "/excel-convert",
+    "/watermark",
 }
 
 
@@ -180,7 +189,7 @@ def thumbnail():
         try:
             if len(doc) == 0:
                 return jsonify({"error": "PDF has no pages"}), 400
-            pix = doc[0].get_pixmap(matrix=pymupdf.Matrix(0.4, 0.4))
+            pix = doc[0].get_pixmap(matrix=pymupdf.Matrix(8.0, 8.0))
             encoded = base64.b64encode(pix.tobytes("png")).decode("utf-8")
             page_count = len(doc)
             file_size = os.path.getsize(pdf_path)
@@ -1148,6 +1157,545 @@ def image_to_pdf():
         return jsonify({"error": str(e)}), 500
     finally:
         cleanup(tmp_dir)
+
+# ============================================================================
+# WATERMARK ENGINE
+# Supports every option exposed by WatermarkPdf.jsx:
+#   kind, text, font_family, font_size, bold, italic, underline, color,
+#   custom_font, wm_image (image/PDF stamp), scale, opacity, rotation,
+#   position (9-point grid), mosaic (tile), layer (over/under), page range.
+# ============================================================================
+
+# ── Position table — (x_pct, y_pct) from bottom-left (ReportLab origin) ────
+_WM_POSITIONS = {
+    "top-left":      (0.18, 0.86),
+    "top-center":    (0.50, 0.86),
+    "top-right":     (0.82, 0.86),
+    "middle-left":   (0.18, 0.50),
+    "center":        (0.50, 0.50),
+    "middle-right":  (0.82, 0.50),
+    "bottom-left":   (0.18, 0.14),
+    "bottom-center": (0.50, 0.14),
+    "bottom-right":  (0.82, 0.14),
+}
+
+# Mosaic grid — 3 columns × 4 rows, covers page evenly (ReportLab origin: bottom-left)
+_WM_MOSAIC_GRID = [
+    (0.18, 0.88), (0.50, 0.88), (0.82, 0.88),
+    (0.18, 0.63), (0.50, 0.63), (0.82, 0.63),
+    (0.18, 0.38), (0.50, 0.38), (0.82, 0.38),
+    (0.18, 0.13), (0.50, 0.13), (0.82, 0.13),
+]
+
+# ReportLab built-in font names keyed by JSX font labels
+_WM_FONT_MAP = {
+    "Helvetica":   "Helvetica",
+    "Times Roman": "Times-Roman",
+    "Courier":     "Courier",
+    "Inter":       "Helvetica",   # web font → fallback
+    "DM Sans":     "Helvetica",   # web font → fallback
+    "Georgia":     "Times-Roman", # closest built-in
+}
+
+
+def _wm_parse_color(color_str: str):
+    """Parse CSS hex or rgba() → (r, g, b, a) as 0-1 floats."""
+    s = (color_str or "").strip()
+    m = re.match(
+        r"rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)", s
+    )
+    if m:
+        r = float(m.group(1)) / 255
+        g = float(m.group(2)) / 255
+        b = float(m.group(3)) / 255
+        a = float(m.group(4)) if m.group(4) is not None else 1.0
+        return r, g, b, a
+    s = s.lstrip("#")
+    if len(s) == 3:
+        s = s[0] * 2 + s[1] * 2 + s[2] * 2
+    if len(s) == 6:
+        return int(s[0:2], 16) / 255, int(s[2:4], 16) / 255, int(s[4:6], 16) / 255, 1.0
+    return 0.5, 0.5, 0.5, 0.3  # fallback grey
+
+
+def _wm_stamp_points(pw, ph, position, mosaic):
+    """Return list of (cx, cy) centre points in PDF points."""
+    if mosaic:
+        return [(gx * pw, gy * ph) for gx, gy in _WM_MOSAIC_GRID]
+    px, py = _WM_POSITIONS.get(position, (0.5, 0.5))
+    return [(px * pw, py * ph)]
+
+
+def _wm_resolve_font(font_rl, bold, italic, custom_font_path):
+    """Register custom font if provided; otherwise apply bold/italic variant."""
+    if custom_font_path and os.path.isfile(custom_font_path):
+        try:
+            pdfmetrics.registerFont(TTFont("WMCustomFont", custom_font_path))
+            return "WMCustomFont"
+        except Exception:
+            pass
+    base = font_rl.split("-")[0]
+    if bold and italic:
+        candidate = f"{base}-BoldOblique" if "Courier" in base else f"{base}-BoldItalic"
+    elif bold:
+        candidate = f"{base}-Bold"
+    elif italic:
+        candidate = f"{base}-Oblique" if "Courier" in base else f"{base}-Italic"
+    else:
+        return font_rl
+    try:
+        pdfmetrics.getFont(candidate)
+        return candidate
+    except Exception:
+        return font_rl
+
+
+def _wm_make_text_stamp(pw, ph, text, font_name, font_size,
+                         bold, italic, underline,
+                         cr, cg, cb, ca, opacity_01, rotation,
+                         cx, cy, custom_font_path):
+    """Build one transparent ReportLab page carrying a single text stamp."""
+    resolved_font = _wm_resolve_font(font_name, bold, italic, custom_font_path)
+    # opacity_01 is the user's master opacity slider (0-1).
+    # ca is the alpha baked into the color string (1.0 for hex colors, < 1 for rgba).
+    # The JSX preview only uses opacity_01 (CSS opacity on the element), so we
+    # match that: use opacity_01 as the draw alpha, multiplied by ca only when
+    # ca < 1.0 (i.e. the user explicitly picked an rgba colour like the default
+    # grey swatch). This avoids near-invisible results from double-multiplication.
+    effective_alpha = min(1.0, opacity_01 * ca if ca < 1.0 else opacity_01)
+
+    packet = io.BytesIO()
+    c = canvas.Canvas(packet, pagesize=(pw, ph))
+    c.saveState()
+    c.setFillColorRGB(cr, cg, cb, alpha=effective_alpha)
+    c.setStrokeColorRGB(cr, cg, cb, alpha=effective_alpha)
+    c.setFont(resolved_font, font_size)
+    c.translate(cx, cy)
+    c.rotate(rotation)
+    text_width = pdfmetrics.stringWidth(text, resolved_font, font_size)
+    tx = -text_width / 2
+    ty = -font_size / 2
+    c.drawString(tx, ty, text)
+    if underline:
+        line_y = ty - font_size * 0.1
+        c.setLineWidth(max(0.5, font_size * 0.04))
+        c.line(tx, line_y, tx + text_width, line_y)
+    c.restoreState()
+    c.save()
+    packet.seek(0)
+    return PdfReader(packet).pages[0]
+
+
+def _wm_make_image_stamp(pw, ph, wm_image_path, opacity_01, rotation, cx, cy, scale, mosaic=False):
+    """Rasterise an image (PNG/JPG/WebP/SVG) or first PDF page into a transparent stamp."""
+    from reportlab.lib.utils import ImageReader
+
+    # Mosaic grid columns are spaced ~32 % of page width apart (centres at 18/50/82 %).
+    # Rows are spaced ~25 % of page height apart. Cap the stamp so it fills ~80 % of
+    # that cell without overflowing into neighbouring tiles.
+    # Single-placement mode uses the caller-supplied scale as-is (default 65 % of width).
+    if mosaic:
+        cell_w = pw * 0.30   # 80 % of the 32 % column pitch
+        cell_h = ph * 0.22   # 80 % of the 25 % row pitch
+        # We'll clamp to whichever dimension is tighter after we know the aspect ratio
+        stamp_w = cell_w     # preliminary; may be reduced below
+    else:
+        stamp_w = pw * scale
+
+    # fitz.open() accepts a file path string. SVG files are also supported by
+    # fitz natively — it renders them to a pixmap just like raster images.
+    try:
+        doc_img = fitz.open(wm_image_path)
+        pix = doc_img[0].get_pixmap(matrix=fitz.Matrix(2, 2), alpha=True)
+        doc_img.close()
+        src_w, src_h = pix.width, pix.height
+        img_bytes = pix.tobytes("png")
+    except Exception:
+        return None
+
+    # Bake opacity into the PNG alpha channel so drawImage() renders at the
+    # correct transparency. ReportLab's setFillAlpha() only affects vector
+    # fill operations and has no effect on drawImage().
+    try:
+        from PIL import Image as PILImage
+        pil = PILImage.open(io.BytesIO(img_bytes)).convert("RGBA")
+        r, g, b, a = pil.split()
+        a = a.point(lambda v: int(v * opacity_01))
+        pil = PILImage.merge("RGBA", (r, g, b, a))
+        buf = io.BytesIO()
+        pil.save(buf, format="PNG")
+        img_bytes = buf.getvalue()
+    except Exception:
+        pass  # fall back to original bytes if Pillow unavailable
+
+    aspect = src_h / src_w if src_w else 1.0
+    if mosaic:
+        # Fit inside the cell respecting aspect ratio
+        stamp_h = stamp_w * aspect
+        if stamp_h > cell_h:
+            stamp_h = cell_h
+            stamp_w = stamp_h / aspect
+    else:
+        stamp_h = stamp_w * aspect
+
+    # Wrap bytes in ImageReader so ReportLab never tries to treat it as a
+    # file-system path — older ReportLab versions reject a bare BytesIO with
+    # "expected str, bytes or os.PathLike object, not BytesIO".
+    img_reader = ImageReader(io.BytesIO(img_bytes))
+
+    packet = io.BytesIO()
+    c = canvas.Canvas(packet, pagesize=(pw, ph))
+    c.saveState()
+    c.translate(cx, cy)
+    c.rotate(rotation)
+    c.drawImage(
+        img_reader,
+        -stamp_w / 2, -stamp_h / 2,
+        width=stamp_w, height=stamp_h,
+        mask="auto",
+        preserveAspectRatio=True,
+    )
+    c.restoreState()
+    c.save()
+    packet.seek(0)
+    return PdfReader(packet).pages[0]
+
+
+def add_watermark(
+    input_path: str,
+    output_path: str,
+    kind: str = "text",
+    text: str = "CONFIDENTIAL",
+    font_family: str = "Helvetica",
+    font_size: float = 60,
+    bold: bool = True,
+    italic: bool = False,
+    underline: bool = False,
+    color: str = "rgba(0,0,0,0.25)",
+    custom_font_path: Optional[str] = None,
+    wm_image_path: Optional[str] = None,
+    scale: float = 0.65,
+    opacity: float = 45,
+    rotation: float = 45,
+    position: str = "center",
+    mosaic: bool = False,
+    layer: str = "over",
+    page_from: int = 1,
+    page_to: int = 0,
+    page_filter: str = "all",  # 'all' | 'odd' | 'even'
+) -> None:
+    """
+    Apply a watermark to input_path and write the result to output_path.
+    Matches every option from WatermarkPdf.jsx.
+    """
+    opacity_01 = max(0.0, min(1.0, opacity / 100.0))
+    cr, cg, cb, ca = _wm_parse_color(color)
+    font_rl = _WM_FONT_MAP.get(font_family, "Helvetica")
+
+    reader = PdfReader(input_path)
+    total_pages = len(reader.pages)
+
+    p_from = max(0, page_from - 1)
+    p_to = (total_pages - 1) if (page_to == 0 or page_to > total_pages) else (page_to - 1)
+    all_pages = set(range(p_from, p_to + 1))
+    if page_filter == "odd":
+        # 1-indexed odd pages → 0-indexed even indices (0, 2, 4…)
+        watermark_pages = {i for i in all_pages if i % 2 == 0}
+    elif page_filter == "even":
+        # 1-indexed even pages → 0-indexed odd indices (1, 3, 5…)
+        watermark_pages = {i for i in all_pages if i % 2 == 1}
+    else:
+        watermark_pages = all_pages
+
+    # Isolate every page into its own single-page BytesIO-backed reader.
+    # pypdf's reader.pages shares internal indirect-object references across
+    # all pages in the same reader. merge_page() resolves and mutates those
+    # shared objects in-place, so stamping page N corrupts pages N+1..end
+    # (they all re-read from the same object table and get page 1's content).
+    # Re-serialising each page through its own PdfWriter + BytesIO breaks the
+    # shared-reference chain so every page is fully independent before we touch it.
+    def _isolate_page(reader, i):
+        w = PdfWriter()
+        w.add_page(reader.pages[i])
+        buf = io.BytesIO()
+        w.write(buf)
+        buf.seek(0)
+        return PdfReader(buf).pages[0]
+
+    isolated_pages = [_isolate_page(reader, i) for i in range(total_pages)]
+
+    # Stamps are also serialised to BytesIO by their makers, so they are already
+    # self-contained — but we still re-isolate them the same way before each
+    # merge_page() so the cache entry is never mutated between pages.
+    def _isolate_stamp(stamp):
+        w = PdfWriter()
+        w.add_page(stamp)
+        buf = io.BytesIO()
+        w.write(buf)
+        buf.seek(0)
+        return PdfReader(buf).pages[0]
+
+    writer = PdfWriter()
+    stamp_cache: dict = {}
+
+    for idx, page in enumerate(isolated_pages):
+        if idx not in watermark_pages:
+            writer.add_page(page)
+            continue
+
+        pw = float(page.mediabox.width)
+        ph = float(page.mediabox.height)
+        cache_key = (pw, ph)
+
+        if cache_key not in stamp_cache:
+            points = _wm_stamp_points(pw, ph, position, mosaic)
+            stamps = []
+            for cx, cy in points:
+                if kind == "image" and wm_image_path:
+                    stamp = _wm_make_image_stamp(
+                        pw, ph, wm_image_path, opacity_01, rotation, cx, cy, scale,
+                        mosaic=mosaic,
+                    )
+                else:
+                    stamp = _wm_make_text_stamp(
+                        pw, ph, text, font_rl, font_size,
+                        bold, italic, underline,
+                        cr, cg, cb, ca,
+                        opacity_01, rotation, cx, cy,
+                        custom_font_path,
+                    )
+                if stamp:
+                    stamps.append(stamp)
+            stamp_cache[cache_key] = stamps
+
+        cached_stamps = stamp_cache[cache_key]
+
+        if layer == "under":
+            if cached_stamps:
+                base = _isolate_stamp(cached_stamps[0])
+                for extra in cached_stamps[1:]:
+                    base.merge_page(_isolate_stamp(extra))
+                base.merge_page(page)
+                writer.add_page(base)
+            else:
+                writer.add_page(page)
+        else:
+            # layer == "over"
+            for stamp in cached_stamps:
+                page.merge_page(_isolate_stamp(stamp))
+            writer.add_page(page)
+
+    writer.compress_identical_objects(remove_identicals=True, remove_orphans=True)
+    merged = io.BytesIO()
+    writer.write(merged)
+    merged.seek(0)
+
+    # PyMuPDF cleanup + compression pass
+    doc = fitz.open(stream=merged, filetype="pdf")
+    doc.save(
+        output_path,
+        garbage=4, deflate=True, clean=True,
+        deflate_images=True, deflate_fonts=True,
+    )
+    doc.close()
+
+
+# ── Flask route ──────────────────────────────────────────────────────────────
+
+@app.route("/watermark", methods=["POST"])
+def watermark_pdf():
+    """
+    Add a text or image/PDF watermark to a PDF.
+
+    multipart/form-data fields
+    ──────────────────────────
+    file          PDF to watermark                              [required]
+    user_id       user identifier                               [required]
+
+    kind          "text" | "image"                             default: text
+    text          watermark string                             default: CONFIDENTIAL
+    font_family   Helvetica|Times Roman|Courier|
+                  Inter|DM Sans|Georgia                        default: Helvetica
+    font_size     numeric point size                           default: 60
+    bold          "true"/"false"                               default: true
+    italic        "true"/"false"                               default: false
+    underline     "true"/"false"                               default: false
+    color         CSS hex (#DC2626) or rgba(0,0,0,0.25)        default: rgba(0,0,0,0.25)
+    custom_font   optional .ttf/.otf file upload
+
+    wm_file       image (PNG/JPG/WebP) or PDF for stamp        [image mode]
+    scale         image stamp width as % of page width         default: 65
+
+    opacity       0-100                                        default: 45
+    rotation      0 | 45 | -45 | 90                           default: 45
+    position      top-left|top-center|top-right|
+                  middle-left|center|middle-right|
+                  bottom-left|bottom-center|bottom-right       default: center
+    mosaic        "true"/"false" — tile across page            default: false
+    layer         "over" | "under"                            default: over
+    page_from     first page to stamp (1-indexed)             default: 1
+    page_to       last  page to stamp (0 = all pages)         default: 0
+    """
+    if "file" not in request.files:
+        return jsonify({"error": "No PDF file uploaded"}), 400
+
+    file = request.files["file"]
+    user_id = get_user_id()
+    file_name = os.path.splitext(safe_name(file.filename, ".pdf"))[0]
+
+    # ── Parse form fields ────────────────────────────────────────────────────
+    kind        = request.form.get("kind",        "text").strip().lower()
+    text        = request.form.get("text",        "CONFIDENTIAL").strip() or "CONFIDENTIAL"
+    font_family = request.form.get("font_family", "Helvetica").strip()
+    position    = request.form.get("position",    "center").strip().lower()
+    layer       = request.form.get("layer",       "over").strip().lower()
+    color       = request.form.get("color",       "rgba(0,0,0,0.25)").strip()
+
+    def _bool(key, default=False) -> bool:
+        v = request.form.get(key, "").strip().lower()
+        if v in ("true", "1", "yes"):  return True
+        if v in ("false", "0", "no"): return False
+        return default
+
+    def _float(key, default: float) -> float:
+        try:   return float(request.form.get(key, default))
+        except (ValueError, TypeError): return default
+
+    def _int(key, default: int) -> int:
+        try:   return int(request.form.get(key, default))
+        except (ValueError, TypeError): return default
+
+    bold      = _bool("bold",      default=True)
+    italic    = _bool("italic",    default=False)
+    underline = _bool("underline", default=False)
+    mosaic    = _bool("mosaic",    default=False)
+
+    font_size = _float("font_size", 60.0)
+    opacity   = _float("opacity",   45.0)
+    rotation  = _float("rotation",  45.0)
+    scale_pct = _float("scale",     65.0)
+    page_from   = _int("page_from",   1)
+    page_to     = _int("page_to",     0)
+    page_filter = request.form.get("page_filter", "all").strip().lower()
+    if page_filter not in ("all", "odd", "even"):
+        page_filter = "all"
+
+    if kind not in ("text", "image"):
+        kind = "text"
+    if layer not in ("over", "under"):
+        layer = "over"
+
+    # ── Save uploaded files ──────────────────────────────────────────────────
+    pdf_path    = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_{safe_name(file.filename, '.pdf')}"
+    output_path = f"{OUTPUT_FOLDER}/{uuid.uuid4().hex}_{file_name}_watermarked.pdf"
+    wm_img_path = None
+    font_path   = None
+
+    file.save(pdf_path)
+
+    if kind == "image":
+        wm_file = request.files.get("wm_file")
+        if not wm_file:
+            cleanup(pdf_path)
+            return jsonify({"error": "wm_file is required for image watermark"}), 400
+        ext = os.path.splitext(wm_file.filename)[1].lower()
+        wm_img_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_wm{ext}"
+        wm_file.save(wm_img_path)
+
+    custom_font_file = request.files.get("custom_font")
+    if custom_font_file and custom_font_file.filename:
+        ext = os.path.splitext(custom_font_file.filename)[1].lower()
+        font_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_font{ext}"
+        custom_font_file.save(font_path)
+
+    # ── Run watermarker ──────────────────────────────────────────────────────
+    try:
+        add_watermark(
+            input_path       = pdf_path,
+            output_path      = output_path,
+            kind             = kind,
+            text             = text,
+            font_family      = font_family,
+            font_size        = font_size,
+            bold             = bold,
+            italic           = italic,
+            underline        = underline,
+            color            = color,
+            custom_font_path = font_path,
+            wm_image_path    = wm_img_path,
+            scale            = scale_pct / 100.0,
+            opacity          = opacity,
+            rotation         = rotation,
+            position         = position,
+            mosaic           = mosaic,
+            layer            = layer,
+            page_from        = page_from,
+            page_to          = page_to,
+            page_filter      = page_filter,
+        )
+        out_name = f"{file_name}_watermarked.pdf"
+        return finish(output_path, user_id, out_name, tool="Watermark PDF")
+    except Exception as e:
+        cleanup(output_path)
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cleanup(pdf_path, wm_img_path, font_path)
+
+
+
+@app.route("/font-info", methods=["POST"])
+def font_info():
+    """
+    Accept a .ttf/.otf upload and return the human-readable font name.
+    multipart/form-data: font_file (required)
+    Returns: { "name": "Inter Bold" }
+    """
+    font_file = request.files.get("font_file")
+    if not font_file:
+        return jsonify({"error": "No font file provided"}), 400
+    ext = os.path.splitext(font_file.filename)[1].lower()
+    if ext not in (".ttf", ".otf"):
+        return jsonify({"error": "Only .ttf and .otf files are supported"}), 400
+
+    tmp_path = f"{UPLOAD_FOLDER}/{uuid.uuid4().hex}_fontinfo{ext}"
+    font_file.save(tmp_path)
+    try:
+        # Try fonttools first (most reliable)
+        try:
+            from fontTools.ttLib import TTFont as FTFont
+            tt = FTFont(tmp_path)
+            name_table = tt["name"]
+            # nameID 4 = Full font name, 1 = Family name
+            full_name = (
+                name_table.getDebugName(4) or
+                name_table.getDebugName(1) or
+                ""
+            )
+            tt.close()
+            if full_name:
+                return jsonify({"name": full_name.strip()})
+        except ImportError:
+            pass
+
+        # Fallback: reportlab TTFont metadata
+        try:
+            tf = TTFont("_tmp_probe", tmp_path)
+            face = tf.face
+            name = getattr(face, "fullName", None) or getattr(face, "familyName", None)
+            if name:
+                if isinstance(name, bytes):
+                    name = name.decode("utf-8", errors="ignore")
+                return jsonify({"name": name.strip()})
+        except Exception:
+            pass
+
+        # Last resort: filename without extension
+        return jsonify({"name": os.path.splitext(font_file.filename)[0]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cleanup(tmp_path)
+
 
 #deploy
 if __name__ == "__main__":

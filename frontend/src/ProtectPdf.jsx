@@ -114,7 +114,7 @@ export default function ProtectPdf({ onBack, tool, onComplete }) {
   })
 
   return (
-    <ToolShell tool={tool} onBack={onBack}>
+    <ToolShell tool={tool} onBack={onBack} loading={loading} loadingLabel="Encrypting your PDF">
         <DropZone
           file={file}
           onFile={f => { setFile(f); setError('') }}

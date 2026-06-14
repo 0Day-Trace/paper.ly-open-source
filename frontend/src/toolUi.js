@@ -11,6 +11,7 @@ export const TOOL_ACCENT_ON_DARK = {
   '#1D4ED8': '#93C5FD',
   '#16A34A': '#86EFAC',
   '#6D28D9': '#C4B5FD',
+  '#0AACBF': '#67E8F9',
 }
 
 export function resolveAccent(accent, theme) {

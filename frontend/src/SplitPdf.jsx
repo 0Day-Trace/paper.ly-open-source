@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useRef, useCallback } from 'react'
 import axios from 'axios'
 import { API_BASE, getUserId } from './config'
 import { downloadRemoteFile } from './download'
@@ -17,6 +17,146 @@ const truncateFilename = (name, max = 28) => {
   const base = name.slice(0, name.length - ext.length)
   const keep = max - ext.length - 3
   return base.slice(0, Math.ceil(keep / 2)) + '…' + base.slice(-Math.floor(keep / 2)) + ext
+}
+
+/* ─── Page button with lazy-loaded thumbnail tooltip ─── */
+function PageButton({ page, active, accent, file, onToggle, firstThumbnail }) {
+  const [hovered, setHovered] = useState(false)
+  const [thumb, setThumb] = useState(page === 1 ? firstThumbnail : null)
+  const [loadingThumb, setLoadingThumb] = useState(false)
+  const fetchedRef = useRef(page === 1 ? true : false)
+  const btnRef = useRef(null)
+
+  const fetchThumb = useCallback(async () => {
+    if (fetchedRef.current || !file) return
+    fetchedRef.current = true
+    setLoadingThumb(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('page', page)
+      const res = await axios.post(`${API_BASE}/page-thumbnail`, fd, { timeout: 15000 })
+      setThumb(res.data.thumbnail || null)
+    } catch {
+      /* silently fail */
+    } finally {
+      setLoadingThumb(false)
+    }
+  }, [file, page])
+
+  const [tooltipPos, setTooltipPos] = useState({ left: 0, top: 0 })
+  const handleMouseMove = () => {
+    if (btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect()
+      setTooltipPos({ left: rect.left + rect.width / 2, top: rect.top })
+    }
+  }
+
+  const handleMouseEnter = () => {
+    setHovered(true)
+    if (btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect()
+      setTooltipPos({ left: rect.left + rect.width / 2, top: rect.top })
+    }
+    fetchThumb()
+  }
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <button
+        ref={btnRef}
+        onClick={onToggle}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={() => setHovered(false)}
+        onMouseMove={handleMouseMove}
+        style={{
+          width: '100%',
+          height: 44,
+          borderRadius: 12,
+          border: `1.5px solid ${active ? accent : 'var(--border)'}`,
+          background: active ? `${accent}18` : 'var(--surface-2)',
+          cursor: 'pointer',
+          fontSize: 13,
+          fontWeight: active ? 600 : 400,
+          color: active ? accent : 'var(--text-2)',
+          transition: 'all 0.15s',
+          fontFamily: 'var(--font-ui)',
+          outline: 'none',
+        }}
+      >
+        {page}
+      </button>
+
+      {/* Thumbnail tooltip — full page preview, no crop */}
+      {hovered && (
+        <div
+          style={{
+            position: 'fixed',
+            left: tooltipPos.left,
+            top: tooltipPos.top - 12,
+            transform: 'translate(-50%, -100%)',
+            zIndex: 9999,
+            pointerEvents: 'none',
+          }}
+        >
+          <div style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 10,
+            padding: 8,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.22)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 5,
+          }}>
+            {thumb ? (
+              <img
+                src={`data:image/png;base64,${thumb}`}
+                alt={`Page ${page}`}
+                style={{
+                  width: 180,
+                  height: 'auto',
+                  display: 'block',
+                  borderRadius: 8,
+                  border: '1px solid var(--border)',
+                }}
+              />
+            ) : (
+              <div style={{
+                width: 180,
+                height: 234,
+                borderRadius: 8,
+                background: 'var(--surface-2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                {loadingThumb
+                  ? <div style={{ width: 20, height: 20, border: '2px solid var(--border)', borderTopColor: accent, borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+                  : <span style={{ fontSize: 12, color: 'var(--text-3)' }}>—</span>
+                }
+              </div>
+            )}
+            <span style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--font-ui)' }}>
+              Page {page}
+            </span>
+          </div>
+          {/* Arrow */}
+          <div style={{
+            width: 8,
+            height: 8,
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderTop: 'none',
+            borderLeft: 'none',
+            transform: 'rotate(45deg)',
+            margin: '-4px auto 0',
+          }} />
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default function SplitPdf({ onBack, tool, onComplete }) {
@@ -146,21 +286,14 @@ export default function SplitPdf({ onBack, tool, onComplete }) {
     }
   }
 
+  const canSplit = !!pageCount && (mode === 'range' || selectedCount > 0)
+
   return (
-    <ToolShell tool={tool} onBack={onBack}>
+    <ToolShell tool={tool} onBack={onBack} loading={loading} loadingLabel="Splitting your PDF">
       <style>{`
-        .split-layout {
-          display: grid;
-          grid-template-columns: 1.1fr 0.9fr;
-          gap: 16px;
-          align-items: start;
-        }
-        @media (max-width: 980px) {
-          .split-layout {
-            grid-template-columns: 1fr;
-          }
-        }
+        @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
+
       {!file ? (
         <DropZone
           id="split-pdf-input"
@@ -171,243 +304,223 @@ export default function SplitPdf({ onBack, tool, onComplete }) {
           accent={accent}
         />
       ) : (
-        <div className="split-layout">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 20,
-              padding: 16,
-              boxShadow: 'var(--shadow-sm)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 14,
-            }}>
-              {thumbnail ? (
-                <img
-                  src={`data:image/png;base64,${thumbnail}`}
-                  alt="Preview"
-                  style={{ width: 46, height: 60, objectFit: 'cover', objectPosition: 'top', borderRadius: 10, border: '1px solid var(--border)' }}
-                />
-              ) : (
-                <div style={{ width: 46, height: 60, borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface-2)' }} />
-              )}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ margin: 0, fontSize: 14, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {truncateFilename(file.name)}
-                </p>
-                <p style={{ margin: '4px 0 0', fontSize: 13, fontWeight: 300, color: 'var(--text-3)' }}>
-                  {uploading ? 'Loading…' : pageCount ? `${pageCount} pages` : 'Reading pages…'}
-                </p>
-              </div>
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                onClick={reset}
-                style={{
-                  border: '1px solid var(--border)',
-                  background: 'var(--surface)',
-                  borderRadius: 14,
-                  padding: '9px 12px',
-                  cursor: 'pointer',
-                  color: 'var(--text-2)',
-                  fontSize: 13,
-                  fontWeight: 400,
-                  boxShadow: 'var(--shadow-sm)',
-                }}
-              >
-                Change
-              </motion.button>
-            </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {[
-                { key: 'range', label: 'Ranges' },
-                { key: 'pages', label: 'Pages' },
-              ].map((m) => {
-                const active = mode === m.key
-                return (
-                  <button
-                    key={m.key}
-                    onClick={() => setMode(m.key)}
-                    style={{
-                      border: `1px solid ${active ? accent : 'var(--border)'}`,
-                      background: active ? 'var(--surface-2)' : 'var(--surface)',
-                      borderRadius: 999,
-                      padding: '8px 14px',
-                      cursor: 'pointer',
-                      fontSize: 13,
-                      fontWeight: 400,
-                      color: active ? 'var(--text)' : 'var(--text-2)',
-                      transition: 'all 0.15s',
-                    }}
-                  >
-                    {m.label}
-                  </button>
-                )
-              })}
+          {/* File bar */}
+          <div style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 16,
+            padding: '12px 14px',
+            boxShadow: 'var(--shadow-sm)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+          }}>
+            {thumbnail ? (
+              <img
+                src={`data:image/png;base64,${thumbnail}`}
+                alt="Preview"
+                style={{ width: 36, height: 48, objectFit: 'contain', borderRadius: 8, border: '1px solid var(--border)', flexShrink: 0, background: 'var(--surface-2)' }}
+              />
+            ) : (
+              <div style={{ width: 36, height: 48, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface-2)', flexShrink: 0 }} />
+            )}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {truncateFilename(file.name)}
+              </p>
+              <p style={{ margin: '3px 0 0', fontSize: 12, fontWeight: 300, color: 'var(--text-3)' }}>
+                {uploading ? 'Loading…' : pageCount ? `${pageCount} page${pageCount !== 1 ? 's' : ''}` : 'Reading…'}
+              </p>
             </div>
-
-            {pageCount && mode === 'range' && (
-              <div style={{
-                background: 'var(--surface)',
+            <button
+              onClick={reset}
+              style={{
                 border: '1px solid var(--border)',
-                borderRadius: 20,
-                padding: 16,
-                boxShadow: 'var(--shadow-sm)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 10,
-              }}>
-                <p style={{ margin: 0, fontSize: 13, fontWeight: 300, color: 'var(--text-3)' }}>
-                  Use formats like <span style={{ color: 'var(--text-2)', fontWeight: 400 }}>1-3</span> or <span style={{ color: 'var(--text-2)', fontWeight: 400 }}>5</span>.
-                </p>
-                {ranges.map((r) => (
-                  <div key={r.id}>
-                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                      <input
-                        value={r.value}
-                        onChange={(e) => updateRange(r.id, e.target.value)}
-                        placeholder="e.g. 1-3"
-                        style={{
-                          flex: 1,
-                          border: '1px solid var(--border)',
-                          borderRadius: 14,
-                          padding: '10px 12px',
-                          background: 'var(--surface-2)',
-                          color: 'var(--text)',
-                          outline: 'none',
-                          fontFamily: 'var(--font-ui)',
-                          fontSize: 14,
-                        }}
-                      />
-                      {ranges.length > 1 && (
-                        <button
-                          onClick={() => removeRange(r.id)}
-                          style={{
-                            width: 38,
-                            height: 38,
-                            borderRadius: 14,
-                            border: '1px solid var(--border)',
-                            background: 'var(--surface)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'pointer',
-                            color: 'var(--text-2)',
-                          }}
-                          title="Remove range"
-                        >
-                          <X size={15} />
-                        </button>
-                      )}
-                    </div>
-                    {r.error ? (
-                      <p style={{ margin: '6px 0 0', fontSize: 13, color: '#DC2626' }}>{r.error}</p>
-                    ) : null}
-                  </div>
-                ))}
+                background: 'var(--surface)',
+                borderRadius: 10,
+                padding: '6px 12px',
+                cursor: 'pointer',
+                color: 'var(--text-2)',
+                fontSize: 13,
+                fontWeight: 400,
+                flexShrink: 0,
+                fontFamily: 'var(--font-ui)',
+                outline: 'none',
+              }}
+            >
+              Change
+            </button>
+          </div>
+
+          {/* Mode tabs */}
+          <div style={{ display: 'flex', gap: 6 }}>
+            {[{ key: 'range', label: 'Ranges' }, { key: 'pages', label: 'Pages' }].map((m) => {
+              const active = mode === m.key
+              return (
                 <button
-                  onClick={addRange}
+                  key={m.key}
+                  onClick={() => setMode(m.key)}
                   style={{
-                    alignSelf: 'flex-start',
-                    border: `1px dashed ${accent}`,
-                    background: 'var(--surface-2)',
-                    borderRadius: 14,
-                    padding: '10px 14px',
+                    border: `1.5px solid ${active ? accent : 'var(--border)'}`,
+                    background: active ? `${accent}12` : 'var(--surface)',
+                    borderRadius: 999,
+                    padding: '7px 16px',
                     cursor: 'pointer',
                     fontSize: 13,
-                    fontWeight: 400,
-                    color: 'var(--text-2)',
+                    fontWeight: active ? 500 : 400,
+                    color: active ? accent : 'var(--text-2)',
+                    transition: 'all 0.15s',
+                    fontFamily: 'var(--font-ui)',
+                    outline: 'none',
                   }}
                 >
-                  Add range
+                  {m.label}
                 </button>
-              </div>
-            )}
-
-            {pageCount && mode === 'pages' && (
-              <div style={{
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 20,
-                padding: 16,
-                boxShadow: 'var(--shadow-sm)',
-              }}>
-                <p style={{ margin: 0, fontSize: 13, fontWeight: 300, color: 'var(--text-3)' }}>Click pages to select.</p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(46px, 1fr))', gap: 8, marginTop: 12 }}>
-                  {Array.from({ length: pageCount }, (_, i) => i + 1).map((p) => {
-                    const active = !!selectedPages[p]
-                    return (
-                      <button
-                        key={p}
-                        onClick={() => togglePage(p)}
-                        style={{
-                          height: 44,
-                          borderRadius: 14,
-                          border: `1px solid ${active ? accent : 'var(--border)'}`,
-                          background: active ? 'var(--surface)' : 'var(--surface-2)',
-                          cursor: 'pointer',
-                          fontSize: 13,
-                          fontWeight: active ? 500 : 400,
-                          color: active ? 'var(--text)' : 'var(--text-2)',
-                          transition: 'all 0.15s',
-                        }}
-                      >
-                        {p}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
+              )
+            })}
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Ranges panel */}
+          {pageCount && mode === 'range' && (
             <div style={{
               background: 'var(--surface)',
               border: '1px solid var(--border)',
-              borderRadius: 20,
-              padding: 16,
+              borderRadius: 16,
+              padding: 14,
               boxShadow: 'var(--shadow-sm)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
             }}>
               <p style={{ margin: 0, fontSize: 13, fontWeight: 300, color: 'var(--text-3)' }}>
-                Export
-                {mode === 'pages' ? ` · ${selectedCount} selected` : ''}
+                Use formats like <span style={{ color: 'var(--text-2)', fontWeight: 400 }}>1-3</span> or <span style={{ color: 'var(--text-2)', fontWeight: 400 }}>5</span>.
               </p>
-              {error ? <p style={{ margin: '10px 0 0', fontSize: 13, color: '#DC2626' }}>{error}</p> : null}
-              {slowWarning && (
-                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-3)', fontWeight: 300 }}>
-                  {slowWarning}
-                </p>
-              )}
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                onClick={handleSplit}
-                disabled={loading || !pageCount}
+              {ranges.map((r) => (
+                <div key={r.id}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input
+                      value={r.value}
+                      onChange={(e) => updateRange(r.id, e.target.value)}
+                      placeholder="e.g. 1-3"
+                      style={{
+                        flex: 1,
+                        border: '1px solid var(--border)',
+                        borderRadius: 12,
+                        padding: '9px 12px',
+                        background: 'var(--surface-2)',
+                        color: 'var(--text)',
+                        outline: 'none',
+                        fontFamily: 'var(--font-ui)',
+                        fontSize: 13,
+                      }}
+                    />
+                    {ranges.length > 1 && (
+                      <button
+                        onClick={() => removeRange(r.id)}
+                        style={{
+                          width: 36, height: 36,
+                          borderRadius: 10,
+                          border: '1px solid var(--border)',
+                          background: 'var(--surface)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          cursor: 'pointer',
+                          color: 'var(--text-2)',
+                          flexShrink: 0,
+                          outline: 'none',
+                        }}
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+                  {r.error && <p style={{ margin: '5px 0 0', fontSize: 12, color: '#DC2626' }}>{r.error}</p>}
+                </div>
+              ))}
+              <button
+                onClick={addRange}
                 style={{
-                  marginTop: 12,
-                  width: '100%',
-                  borderRadius: 18,
-                  padding: '13px 16px',
-                  border: `1px solid ${!pageCount ? 'var(--border)' : 'var(--accent)'}`,
-                  background: primaryActionBg(!!pageCount),
-                  color: primaryActionColor(!!pageCount),
-                  cursor: loading || !pageCount ? 'not-allowed' : 'pointer',
+                  alignSelf: 'flex-start',
+                  border: `1.5px dashed ${accent}88`,
+                  background: 'transparent',
+                  borderRadius: 10,
+                  padding: '8px 14px',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  fontWeight: 400,
+                  color: 'var(--text-2)',
                   fontFamily: 'var(--font-ui)',
-                  fontSize: 14,
-                  fontWeight: 500,
-                  opacity: loading ? 0.75 : 1,
-                  boxShadow: !pageCount ? 'none' : `0 10px 30px ${accent}22`,
-                  transition: 'all 0.18s ease',
+                  outline: 'none',
                 }}
               >
-                {loading ? 'Splitting…' : 'Split PDF'}
-              </motion.button>
+                + Add range
+              </button>
             </div>
-          </div>
+          )}
+
+          {/* Pages picker */}
+          {pageCount && mode === 'pages' && (
+            <div style={{
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 16,
+              padding: 14,
+              boxShadow: 'var(--shadow-sm)',
+            }}>
+              <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 300, color: 'var(--text-3)' }}>
+                Hover to preview · click to select
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(48px, 1fr))', gap: 6 }}>
+                {Array.from({ length: pageCount }, (_, i) => i + 1).map((p) => (
+                  <PageButton
+                    key={p}
+                    page={p}
+                    active={!!selectedPages[p]}
+                    accent={accent}
+                    file={file}
+                    firstThumbnail={p === 1 ? thumbnail : null}
+                    onToggle={() => togglePage(p)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Error / slow warning */}
+          {error && <p style={{ margin: 0, fontSize: 13, color: '#DC2626' }}>{error}</p>}
+          {slowWarning && <p style={{ margin: 0, fontSize: 13, color: 'var(--text-3)', fontWeight: 300 }}>{slowWarning}</p>}
+
+          {/* Action button — same as all other tools */}
+          <motion.button
+            whileTap={{ scale: 0.97 }}
+            onClick={handleSplit}
+            disabled={loading || !canSplit}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              width: '100%',
+              borderRadius: 'var(--radius)',
+              padding: '13px 18px',
+              border: `1px solid ${canSplit ? 'var(--accent)' : 'var(--border)'}`,
+              background: primaryActionBg(canSplit),
+              color: primaryActionColor(canSplit),
+              cursor: loading || !canSplit ? 'not-allowed' : 'pointer',
+              fontFamily: 'var(--font-ui)',
+              fontSize: 14,
+              fontWeight: 500,
+              opacity: loading ? 0.75 : 1,
+              boxShadow: canSplit ? `0 10px 30px ${accent}22` : 'none',
+              transition: 'all 0.18s ease',
+              outline: 'none',
+            }}
+          >
+            {loading ? 'Splitting…' : 'Split PDF'}
+          </motion.button>
         </div>
       )}
     </ToolShell>
   )
 }
-

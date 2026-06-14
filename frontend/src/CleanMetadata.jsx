@@ -45,7 +45,7 @@ export default function CleanMetadata({ onBack, tool, onComplete }) {
   const metaFields = ['Author', 'Creator', 'Producer', 'Creation date', 'Modification date', 'Keywords', 'Subject']
 
   return (
-    <ToolShell tool={tool} onBack={onBack}>
+    <ToolShell tool={tool} onBack={onBack} loading={loading} loadingLabel="Cleaning your metadata">
         <DropZone
           file={file}
           onFile={f => { setFile(f); setSuccess(false); setError('') }}

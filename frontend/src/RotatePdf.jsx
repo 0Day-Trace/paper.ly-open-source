@@ -111,13 +111,13 @@ export default function RotatePdf({ onBack, tool, onComplete }) {
   }
 
   return (
-    <ToolShell tool={tool} onBack={onBack}>
+    <ToolShell tool={tool} onBack={onBack} loading={loading} loadingLabel="Rotating your PDF">
       <style>{`
         @keyframes pulse-sk { 0%,100%{opacity:0.4} 50%{opacity:0.8} }
         .sk { animation: pulse-sk 1.4s ease-in-out infinite; background: var(--surface-2); border-radius: 6px; }
-        .page-grid-r { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; }
+        .page-grid-r { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; }
         .page-card-r:hover .rot-hint { opacity: 1 !important; }
-        @media(max-width:480px) { .page-grid-r { grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; } }
+        @media(max-width:480px) { .page-grid-r { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; } }
       `}</style>
 
       {/* File zone / compact bar */}
@@ -253,8 +253,8 @@ export default function RotatePdf({ onBack, tool, onComplete }) {
                   </div>
                 )}
               </div>
-              <span style={{ color: page.rotation !== 0 ? accent : 'var(--text-3)', fontSize: 11, transition: 'color 0.2s' }}>
-                pg {idx + 1}
+              <span style={{ color: page.rotation !== 0 ? accent : 'var(--text-3)', fontSize: 12, fontFamily: 'var(--font-ui)', transition: 'color 0.2s' }}>
+                {idx + 1}
               </span>
             </div>
           ))}

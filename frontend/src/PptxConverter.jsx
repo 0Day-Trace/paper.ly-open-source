@@ -51,7 +51,7 @@ export default function PptxConverter({ onBack, tool, onComplete }) {
   }
 
   return (
-    <ToolShell tool={tool} onBack={onBack}>
+    <ToolShell tool={tool} onBack={onBack} loading={loading} loadingLabel="Converting your presentation">
         <DropZone
           file={file}
           onFile={f => { setFile(f); setError('') }}

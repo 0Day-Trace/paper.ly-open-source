@@ -46,7 +46,7 @@ export default function PdfToImage({ onBack, tool, onComplete }) {
   const slowWarning = useSlowWarning(loading)
 
   return (
-    <ToolShell tool={tool} onBack={onBack}>
+    <ToolShell tool={tool} onBack={onBack} loading={loading} loadingLabel="Converting your PDF">
         <DropZone
           file={file}
           onFile={f => { setFile(f); setError('') }}

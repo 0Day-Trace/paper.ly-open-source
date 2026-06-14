@@ -141,7 +141,7 @@ export default function ImageToPdfTool({ onBack, tool, onComplete }) {
   }
 
   return (
-    <ToolShell tool={tool} onBack={onBack}>
+    <ToolShell tool={tool} onBack={onBack} loading={loading} loadingLabel="Building your PDF">
         <div onClick={() => inputRef.current?.click()} onDragOver={(e) => e.preventDefault()} onDrop={onDrop} style={{ border: `1.5px dashed var(--border-strong)`, borderRadius: 20, padding: '28px 22px', background: images.length ? 'var(--surface)' : 'var(--dropzone-empty-bg)', cursor: 'pointer' }}>
           <input ref={inputRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={(e) => { addImages(e.target.files); e.target.value = '' }} />
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
@@ -183,8 +183,8 @@ export default function ImageToPdfTool({ onBack, tool, onComplete }) {
                         <div className="reorder-row-main">
                           <span className="reorder-row-index">{index + 1}</span>
                           <div style={{
-                            width: 56,
-                            height: 56,
+                            width: 72,
+                            height: 72,
                             borderRadius: 10,
                             overflow: 'hidden',
                             flexShrink: 0,
@@ -198,7 +198,7 @@ export default function ImageToPdfTool({ onBack, tool, onComplete }) {
                               style={{
                                 width: '100%',
                                 height: '100%',
-                                objectFit: 'cover',
+                                objectFit: 'contain',
                                 pointerEvents: 'none',
                                 userSelect: 'none',
                               }}

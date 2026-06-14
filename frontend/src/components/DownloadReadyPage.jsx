@@ -243,15 +243,16 @@ export default function DownloadReadyPage({ data, onBackHome }) {
         )}
 
         <div style={{
-          display: 'grid',
+          display: 'flex',
           gap: 14,
-          alignItems: 'center',
-          gridTemplateColumns: isNarrow ? '1fr' : 'minmax(0, 1fr) auto',
+          alignItems: isNarrow ? 'flex-start' : 'flex-start',
+          justifyContent: 'space-between',
+          flexDirection: isNarrow ? 'column' : 'row',
         }}>
-          <div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{ margin: 0, fontSize: 14, color: 'var(--text-2)', fontWeight: 500 }}>Scan to download on any device</p>
             {countdownLabel ? (
-              <p style={{ margin: '6px 0 0', fontSize: 13, color: '#0A84FF', fontWeight: 700, whiteSpace: isNarrow ? 'normal' : 'nowrap', lineHeight: 1.35 }}>
+              <p style={{ margin: '6px 0 0', fontSize: 13, color: '#0A84FF', fontWeight: 700, whiteSpace: 'normal', lineHeight: 1.35 }}>
                 {countdownLabel}
               </p>
             ) : (
@@ -270,6 +271,8 @@ export default function DownloadReadyPage({ data, onBackHome }) {
             alignItems: 'center',
             justifyContent: 'center',
             overflow: 'hidden',
+            flexShrink: 0,
+            alignSelf: isNarrow ? 'center' : 'flex-start',
           }}>
             <img
               src={qrUrl}

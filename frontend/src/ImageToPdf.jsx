@@ -143,7 +143,7 @@ export default function ImageToPdf({ onBack, tool, onComplete }) {
   }
 
   return (
-    <ToolShell tool={tool} onBack={onBack}>
+    <ToolShell tool={tool} onBack={onBack} loading={loading} loadingLabel="Building your PDF">
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div
           onClick={() => inputRef.current?.click()}

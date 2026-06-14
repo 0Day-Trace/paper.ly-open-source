@@ -65,7 +65,7 @@ export default function CompressPdf({ onBack, tool, onComplete }) {
   const slowWarning = useSlowWarning(loading)
 
   return (
-    <ToolShell tool={tool} onBack={onBack}>
+    <ToolShell tool={tool} onBack={onBack} loading={loading} loadingLabel="Compressing your PDF">
         <DropZone
           file={file}
           onFile={handleFile}

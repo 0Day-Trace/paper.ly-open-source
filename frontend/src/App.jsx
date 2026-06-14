@@ -7,7 +7,7 @@
  */
 
 import React, { useRef, useState, useEffect, useLayoutEffect } from 'react'
-import { flushSync } from 'react-dom'
+import { flushSync, createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as Tooltip from '@radix-ui/react-tooltip'
@@ -36,7 +36,10 @@ import DocxConverter from './DocxConverter'
 import ExcelConverter from './ExcelConverter'
 import RotatePdf     from './RotatePdf'
 import ImageToPdf    from './ImageToPdfTool'
+import WatermarkPdf  from './WatermarkPdf'
 import DownloadReadyPage from './components/DownloadReadyPage'
+import Aurora from './components/Aurora'
+import Grainient from './components/Grainient'
 import { ServerConfigProvider, useServerConfig } from './context/ServerConfigContext'
 import {
   API_BASE,
@@ -51,6 +54,30 @@ import { downloadRemoteFile, cleanDownloadFilename, toAbsoluteUrl, withDownloadP
 const GithubIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
     <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+  </svg>
+)
+
+// icons8 visa-stamp — used on the Watermark PDF tool card
+const StampSvgIcon = ({ size = 18, color = 'currentColor', strokeWidth }) => (
+  <svg viewBox="0 0 50 50" width={size} height={size} fill={color} xmlns="http://www.w3.org/2000/svg">
+    <rect x="1"  y="30" width="2" height="2"/>
+    <rect x="1"  y="34" width="2" height="2"/>
+    <rect x="1"  y="38" width="2" height="2"/>
+    <rect x="1"  y="42" width="2" height="2"/>
+    <rect x="5"  y="42" width="2" height="2"/>
+    <rect x="9"  y="42" width="2" height="2"/>
+    <rect x="13" y="42" width="2" height="2"/>
+    <rect x="17" y="42" width="2" height="2"/>
+    <rect x="21" y="42" width="2" height="2"/>
+    <rect x="25" y="42" width="2" height="2"/>
+    <rect x="29" y="42" width="2" height="2"/>
+    <rect x="33" y="42" width="2" height="2"/>
+    <rect x="37" y="42" width="2" height="2"/>
+    <rect x="5"  y="30" width="2" height="2"/>
+    <rect x="9"  y="30" width="2" height="2"/>
+    <path d="M5.748,22.323l0.402,3.65c0.042,0.377,0.292,0.697,0.647,0.829L41.453,39.61c0.113,0.041,0.23,0.062,0.347,0.062c0.25,0,0.495-0.094,0.684-0.271l2.679-2.511L5.748,22.323z"/>
+    <path d="M27.26,9.911c0.286,1.736,0.557,3.376,0.119,4.56l-2.058,5.58c-0.063,0.15-0.078,0.25-0.013,0.404c0.245,0.568,1.295,1.277,2.612,1.764c0.016,0.006,0.026,0.019,0.042,0.026c1.913,0.742,3.995,0.726,4.223,0.167l2.189-5.937c0.465-1.183,1.612-2.153,2.722-3.091c0.507-0.429,1.02-0.865,1.429-1.288c0.396-0.551,0.738-1.104,0.94-1.651c0.697-1.886,0.702-3.655,0.014-5.115c-0.677-1.434-2.01-2.552-3.856-3.234c-1.849-0.683-3.587-0.701-5.035-0.051c-1.472,0.661-2.619,2.008-3.315,3.895c-0.192,0.518-0.278,1.131-0.312,1.785C27.013,8.399,27.139,9.18,27.26,9.911z"/>
+    <path d="M49.404,20.898l-12.515-4.625c-0.297,0.317-0.531,0.625-0.645,0.913l-2.194,5.949c-0.509,1.248-1.808,1.685-3.248,1.685c-1.232,0-2.568-0.32-3.6-0.725c-0.017-0.007-0.027-0.021-0.043-0.028c-1.133-0.426-3.048-1.339-3.687-2.822c-0.273-0.637-0.276-1.305-0.009-1.933l2.039-5.534c0.138-0.374,0.126-0.993,0.052-1.694L12.925,7.417c-0.494-0.181-1.044,0.049-1.259,0.529L6.117,20.327l40.064,14.805l3.836-13.014C50.166,21.614,49.897,21.081,49.404,20.898z"/>
   </svg>
 )
 
@@ -203,12 +230,12 @@ const TOOLS = [
     category: "Security",
   },
   {
-    id: "Remove Pages",
-    label: "Remove Pages",
-    desc: "Delete selected pages from PDF",
-    icon: Trash2,
-    accent: "#EA580C",
-    accentLight: "#FFF7ED",
+    id: "Watermark PDF",
+    label: "Watermark PDF",
+    desc: "Add text, image, or PDF watermarks",
+    icon: StampSvgIcon,
+    accent: "#7C5CFC",
+    accentLight: "#F5F3FF",
     category: "Organize",
   },
   {
@@ -256,6 +283,15 @@ const TOOLS = [
     accentLight: "#F5F3FF",
     category: "Organize",
   },
+  {
+    id: "Remove Pages",
+    label: "Remove Pages",
+    desc: "Delete selected pages from PDF",
+    icon: Trash2,
+    accent: "#EA580C",
+    accentLight: "#FFF7ED",
+    category: "Organize",
+  },
 ]
 
 const CATEGORIES = ["All", "Convert", "Organize", "Security", "Optimize"]
@@ -274,6 +310,7 @@ const TOOL_ACCENT_ON_DARK = {
   '#1D4ED8': '#93C5FD',
   '#16A34A': '#86EFAC',
   '#6D28D9': '#C4B5FD',
+  '#7C5CFC': '#A78BFA',
 }
 
 function toolAccentColor(tool, theme) {
@@ -309,7 +346,7 @@ const GlobalStyles = () => (
       --radius-lg: 22px;
       --radius-xl: 32px;
       --font-display: 'Instrument Serif', Georgia, serif;
-      --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "DM Sans", sans-serif;
+      --font-ui: "DM Sans", -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif;
       --glass-info: rgba(255,255,255,0.62);
       --glass-info-border: rgba(0,0,0,0.08);
       --visual-sheen: rgba(255,255,255,0.7);
@@ -521,37 +558,47 @@ const GlobalStyles = () => (
     .qr-modal-overlay {
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,0.36);
-      backdrop-filter: blur(4px);
-      -webkit-backdrop-filter: blur(4px);
+      background: rgba(0,0,0,0.2);
+      backdrop-filter: blur(2px);
+      -webkit-backdrop-filter: blur(2px);
       z-index: 120;
     }
 
     .qr-modal-content {
       position: fixed;
-      left: 50%;
-      top: 50%;
-      transform: translate(-50%, -50%);
-      width: min(420px, calc(100vw - 24px));
+      right: calc(min(480px, 95vw) + 12px);
+      bottom: 24px;
+      width: 300px;
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 18px;
-      box-shadow: var(--shadow-lg);
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.24);
       z-index: 121;
-      padding: 18px;
+      padding: 16px;
     }
 
     @media (max-width: 700px) {
       .qr-modal-content {
-        top: auto;
         left: 0;
         right: 0;
         bottom: 0;
-        transform: none;
+        top: auto;
         width: 100%;
-        border-radius: 18px 18px 0 0;
+        max-width: 100%;
+        border-radius: 20px 20px 0 0;
+        padding: 20px 20px calc(20px + env(safe-area-inset-bottom, 0px));
+        box-shadow: 0 -4px 40px rgba(0,0,0,0.22);
+      }
+      .qr-sheet-handle {
+        display: block;
+        width: 36px;
+        height: 4px;
+        border-radius: 2px;
+        background: var(--border);
+        margin: -8px auto 16px;
       }
     }
+    .qr-sheet-handle { display: none; }
 
     @media (max-width: 560px) {
       :root { --header-height: 58px; }
@@ -606,89 +653,9 @@ const GlobalStyles = () => (
       min-width: 0;
     }
 
-    /* Homepage gradient — static base + one slow layer (desktop); static on phone */
-    .page-aura {
-      position: fixed;
-      top: var(--header-height);
-      left: 0;
-      right: 0;
-      height: min(520px, 64vh);
-      z-index: 0;
-      pointer-events: none;
-      overflow: hidden;
-      background: var(--bg);
-      -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 50%, transparent 96%);
-      mask-image: linear-gradient(to bottom, #000 0%, #000 50%, transparent 96%);
-    }
-
-    html:not([data-theme='dark']) .page-aura {
-      height: min(560px, 68vh);
-      -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 58%, transparent 98%);
-      mask-image: linear-gradient(to bottom, #000 0%, #000 58%, transparent 98%);
-    }
-
-    .page-aura-base,
-    .page-aura-shift {
-      position: absolute;
-      inset: -30% -10%;
-      pointer-events: none;
-      background:
-        radial-gradient(ellipse 62% 52% at 18% 36%, rgba(0, 122, 255, 0.26), transparent 72%),
-        radial-gradient(ellipse 56% 48% at 82% 28%, rgba(175, 82, 222, 0.22), transparent 70%),
-        radial-gradient(ellipse 52% 46% at 56% 76%, rgba(255, 45, 85, 0.18), transparent 68%),
-        radial-gradient(ellipse 50% 44% at 34% 60%, rgba(90, 200, 250, 0.2), transparent 70%),
-        radial-gradient(ellipse 44% 40% at 70% 56%, rgba(255, 149, 0, 0.14), transparent 66%),
-        radial-gradient(ellipse 42% 38% at 50% 40%, rgba(88, 86, 214, 0.14), transparent 64%);
-    }
-
-    .page-aura-shift {
-      display: none;
-      opacity: 0.65;
-      background:
-        radial-gradient(ellipse 62% 52% at 28% 42%, rgba(0, 122, 255, 0.22), transparent 72%),
-        radial-gradient(ellipse 56% 48% at 72% 34%, rgba(175, 82, 222, 0.18), transparent 70%),
-        radial-gradient(ellipse 52% 46% at 48% 68%, rgba(255, 45, 85, 0.15), transparent 68%),
-        radial-gradient(ellipse 50% 44% at 44% 52%, rgba(90, 200, 250, 0.16), transparent 70%),
-        radial-gradient(ellipse 44% 40% at 60% 62%, rgba(255, 149, 0, 0.12), transparent 66%),
-        radial-gradient(ellipse 42% 38% at 58% 48%, rgba(88, 86, 214, 0.12), transparent 64%);
-    }
-
-    html[data-theme='dark'] .page-aura-base {
-      background:
-        radial-gradient(ellipse 62% 52% at 18% 36%, rgba(96, 165, 250, 0.22), transparent 72%),
-        radial-gradient(ellipse 56% 48% at 82% 28%, rgba(192, 132, 252, 0.18), transparent 70%),
-        radial-gradient(ellipse 52% 46% at 56% 76%, rgba(244, 114, 182, 0.15), transparent 68%),
-        radial-gradient(ellipse 50% 44% at 34% 60%, rgba(56, 189, 248, 0.16), transparent 70%),
-        radial-gradient(ellipse 44% 40% at 70% 56%, rgba(251, 191, 36, 0.12), transparent 66%),
-        radial-gradient(ellipse 42% 38% at 50% 40%, rgba(129, 140, 248, 0.12), transparent 64%);
-    }
-
-    html[data-theme='dark'] .page-aura-shift {
-      background:
-        radial-gradient(ellipse 62% 52% at 28% 42%, rgba(96, 165, 250, 0.18), transparent 72%),
-        radial-gradient(ellipse 56% 48% at 72% 34%, rgba(192, 132, 252, 0.15), transparent 70%),
-        radial-gradient(ellipse 52% 46% at 48% 68%, rgba(244, 114, 182, 0.12), transparent 68%),
-        radial-gradient(ellipse 50% 44% at 44% 52%, rgba(56, 189, 248, 0.13), transparent 70%),
-        radial-gradient(ellipse 44% 40% at 60% 62%, rgba(251, 191, 36, 0.1), transparent 66%),
-        radial-gradient(ellipse 42% 38% at 58% 48%, rgba(129, 140, 248, 0.1), transparent 64%);
-    }
-
-    @media (min-width: 768px) and (prefers-reduced-motion: no-preference) {
-      .page-aura-shift {
-        display: block;
-        will-change: transform;
-        transform: translate3d(0, 0, 0);
-        animation: page-aura-glide 40s ease-in-out infinite alternate;
-      }
-    }
-
-    @keyframes page-aura-glide {
-      from { transform: translate3d(0, 0, 0); }
-      to { transform: translate3d(-2.5%, 1.5%, 0); }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      .page-aura-shift { display: none !important; }
+    /* phones — smaller, lighter blobs; no animation */
+    @media (max-width: 640px) {
+      .aura-blob { filter: blur(56px); animation: none !important; }
     }
 
     .tool-category-label {
@@ -969,13 +936,90 @@ const GlobalStyles = () => (
   `}</style>
 )
 
-/* ─── Homepage ambient gradient (sits flush under fixed header) ─── */
-const PageAura = () => (
-  <div className="page-aura" aria-hidden="true">
-    <div className="page-aura-base" />
-    <div className="page-aura-shift" />
-  </div>
-)
+/* ─── Homepage aurora gradient ─── */
+const PageAura = ({ theme }) => {
+  const isDark = theme === 'dark'
+  const [vw, setVw] = useState(() => window.innerWidth)
+
+  useEffect(() => {
+    const onResize = () => setVw(window.innerWidth)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  // Breakpoints
+  const isMobile = vw < 480
+  const isTablet = vw >= 480 && vw < 768
+
+  // ── Aurora (dark mode) ──
+  // Lower amplitude on mobile so waves don't escape the canvas vertically.
+  // Higher blend on mobile widens the glow band so there's no empty gap at top.
+  const auroraAmplitude = isMobile ? 0.6  : isTablet ? 0.9  : 1.3
+  const auroraBlend     = isMobile ? 0.65 : isTablet ? 0.58 : 0.55
+  // Aurora mask: keep opacity strong all the way down on mobile — the shader
+  // already fades naturally at the bottom, so we only need a gentle top cap.
+  const auroraMask = isMobile
+    ? 'linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0.85) 55%, transparent 100%)'
+    : isTablet
+    ? 'linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0.7) 45%, transparent 95%)'
+    : 'linear-gradient(to bottom, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.6) 35%, transparent 90%)'
+
+  // ── Grainient (light mode) ──
+  const grainZoom         = isMobile ? 1.1  : isTablet ? 0.95 : 0.85
+  const grainWarpStrength = isMobile ? 0.7  : isTablet ? 0.95 : 1.2
+  const grainWarpSpeed    = isMobile ? 1.2  : isTablet ? 1.6  : 2.0
+  const grainContrast     = isMobile ? 1.15 : isTablet ? 1.22 : 1.3
+  const grainMask = isMobile
+    ? 'linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0.75) 50%, transparent 95%)'
+    : isTablet
+    ? 'linear-gradient(to bottom, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.65) 40%, transparent 92%)'
+    : 'linear-gradient(to bottom, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.6) 35%, transparent 90%)'
+
+  const maskImage = isDark ? auroraMask : grainMask
+
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: '100vh',
+        zIndex: 0,
+        pointerEvents: 'none',
+        WebkitMaskImage: maskImage,
+        maskImage: maskImage,
+        opacity: isDark ? 0.85 : 0.70,
+      }}
+    >
+      {isDark ? (
+        <Aurora
+          colorStops={['#3B82F6', '#8B5CF6', '#06B6D4']}
+          amplitude={auroraAmplitude}
+          blend={auroraBlend}
+          speed={0.6}
+          frequency={0.8}
+          style={{ width: '100%', height: '100%' }}
+        />
+      ) : (
+        <Grainient
+          color1="#60A5FA"
+          color2="#A78BFA"
+          color3="#F472B6"
+          timeSpeed={0.35}
+          warpStrength={grainWarpStrength}
+          warpSpeed={grainWarpSpeed}
+          grainAmount={0.08}
+          contrast={grainContrast}
+          saturation={1.1}
+          zoom={grainZoom}
+          style={{ width: '100%', height: '100%' }}
+        />
+      )}
+    </div>
+  )
+}
 
 /* ─── Header component ─── */
 const Header = ({ onRecentOpen, activeTool, onLogoClick, onToolsClick, theme, onToggleTheme }) => {
@@ -1466,45 +1510,49 @@ const RecentSheet = ({ open, onClose, theme }) => {
                       />
                       <motion.div
                         className="qr-modal-content"
-                        initial={{ opacity: 0, y: 20, scale: 0.98 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 16, scale: 0.98 }}
-                        transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                        initial={{ opacity: 0, x: 20, scale: 0.95 }}
+                        animate={{ opacity: 1, x: 0, scale: 1 }}
+                        exit={{ opacity: 0, x: 20, scale: 0.95 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 12 }}>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <p style={{ margin: 0, fontSize: 15, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {truncateMiddle(cleanDownloadFilename(qrFile.file_name, qrFile.url))}
+                            <p style={{ margin: 0, fontSize: 14, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.3 }}>
+                              {truncateMiddle(cleanDownloadFilename(qrFile.file_name, qrFile.url), 26)}
                             </p>
-                            <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-3)' }}>
-                              Scan to download on any device
+                            <p style={{ margin: '3px 0 0', fontSize: 12, color: 'var(--text-3)', lineHeight: 1.3 }}>
+                              Scan to download
                             </p>
                           </div>
                           <button
                             type="button"
                             onClick={() => setQrFile(null)}
-                            style={{ width: 30, height: 30, borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface-2)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-2)', flexShrink: 0 }}
-                            title="Close QR modal"
+                            style={{ width: 28, height: 28, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-2)', flexShrink: 0, transition: 'all 0.15s' }}
+                            title="Close"
+                            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--border)'; e.currentTarget.style.color = 'var(--text)' }}
+                            onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-2)'; e.currentTarget.style.color = 'var(--text-2)' }}
                           >
                             <X size={14} />
                           </button>
                         </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '10px 0 14px' }}>
-                          <div style={{ borderRadius: 14, border: '1px solid var(--border)', background: '#fff', padding: 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                          <div style={{ borderRadius: 10, border: '1px solid var(--border)', background: 'white', padding: 8, boxShadow: 'var(--shadow-sm)' }}>
                             <img
                               src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(withDownloadParam(toAbsoluteUrl(qrFile.url), cleanDownloadFilename(qrFile.file_name, qrFile.url)))}`}
-                              alt="QR code for file download"
-                              style={{ display: 'block', width: 220, height: 220 }}
+                              alt="QR code"
+                              style={{ display: 'block', width: 160, height: 160 }}
                             />
                           </div>
                         </div>
 
-                        <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                           <button
                             type="button"
                             onClick={() => downloadFile(qrFile)}
-                            style={{ border: 'none', borderRadius: 12, padding: '10px 14px', background: 'var(--accent)', color: 'white', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 500, fontFamily: 'var(--font-ui)' }}
+                            style={{ width: '100%', border: 'none', borderRadius: 10, padding: '9px 14px', background: 'var(--accent)', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 13, fontWeight: 500, fontFamily: 'var(--font-ui)', transition: 'all 0.15s', boxShadow: '0 2px 6px rgba(0,0,0,0.1)' }}
+                            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 3px 10px rgba(0,0,0,0.15)' }}
+                            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.1)' }}
                           >
                             <Download size={14} />
                             Download
@@ -1519,7 +1567,9 @@ const RecentSheet = ({ open, onClose, theme }) => {
                                 toast.error('Copy failed')
                               }
                             }}
-                            style={{ border: '1px solid var(--border)', borderRadius: 12, padding: '10px 14px', background: 'var(--surface)', color: 'var(--text-2)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 500, fontFamily: 'var(--font-ui)' }}
+                            style={{ width: '100%', border: '1px solid var(--border)', borderRadius: 10, padding: '9px 14px', background: 'var(--surface)', color: 'var(--text-2)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 13, fontWeight: 500, fontFamily: 'var(--font-ui)', transition: 'all 0.15s', boxShadow: 'var(--shadow-sm)' }}
+                            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2)'; e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--text)' }}
+                            onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface)'; e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-2)' }}
                           >
                             <Copy size={14} />
                             Copy link
@@ -1534,6 +1584,93 @@ const RecentSheet = ({ open, onClose, theme }) => {
           </Dialog.Portal>
         )}
       </AnimatePresence>
+
+      {/* QR popup rendered into document.body so position:fixed is relative to viewport */}
+      {createPortal(
+        <AnimatePresence>
+          {qrFile && (
+            <>
+              <motion.div
+                className="qr-modal-overlay"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setQrFile(null)}
+              />
+              <motion.div
+                className="qr-modal-content"
+                initial={{ opacity: 0, y: window.innerWidth <= 700 ? 80 : 0, x: window.innerWidth <= 700 ? 0 : 20, scale: window.innerWidth <= 700 ? 1 : 0.95 }}
+                animate={{ opacity: 1, y: 0, x: 0, scale: 1 }}
+                exit={{ opacity: 0, y: window.innerWidth <= 700 ? 80 : 0, x: window.innerWidth <= 700 ? 0 : 20, scale: window.innerWidth <= 700 ? 1 : 0.95 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              >
+                <div className="qr-sheet-handle" />
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 12 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ margin: 0, fontSize: 14, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.3 }}>
+                      {truncateMiddle(cleanDownloadFilename(qrFile.file_name, qrFile.url), 26)}
+                    </p>
+                    <p style={{ margin: '3px 0 0', fontSize: 12, color: 'var(--text-3)', lineHeight: 1.3 }}>
+                      Scan to download
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setQrFile(null)}
+                    style={{ width: 28, height: 28, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-2)', flexShrink: 0, transition: 'all 0.15s' }}
+                    title="Close"
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--border)'; e.currentTarget.style.color = 'var(--text)' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-2)'; e.currentTarget.style.color = 'var(--text-2)' }}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                  <div style={{ borderRadius: 12, border: '1px solid var(--border)', background: 'white', padding: 12, boxShadow: 'var(--shadow-sm)' }}>
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(withDownloadParam(toAbsoluteUrl(qrFile.url), cleanDownloadFilename(qrFile.file_name, qrFile.url)))}`}
+                      alt="QR code"
+                      style={{ display: 'block', width: 220, height: 220 }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => downloadFile(qrFile)}
+                    style={{ width: '100%', border: 'none', borderRadius: 10, padding: '9px 14px', background: 'var(--accent)', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 13, fontWeight: 500, fontFamily: 'var(--font-ui)', transition: 'all 0.15s', boxShadow: '0 2px 6px rgba(0,0,0,0.1)' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 3px 10px rgba(0,0,0,0.15)' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.1)' }}
+                  >
+                    <Download size={14} />
+                    Download
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(qrFile.url)
+                        toast.success('Link copied')
+                      } catch {
+                        toast.error('Copy failed')
+                      }
+                    }}
+                    style={{ width: '100%', border: '1px solid var(--border)', borderRadius: 10, padding: '9px 14px', background: 'var(--surface)', color: 'var(--text-2)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 13, fontWeight: 500, fontFamily: 'var(--font-ui)', transition: 'all 0.15s', boxShadow: 'var(--shadow-sm)' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2)'; e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--text)' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface)'; e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-2)' }}
+                  >
+                    <Copy size={14} />
+                    Copy link
+                  </button>
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </Dialog.Root>
   )
 }
@@ -1553,7 +1690,7 @@ const Footer = () => {
 
       <div className="footer-right">
         <span style={{ fontSize: 14, color: 'var(--text-3)', fontWeight: 400 }}>
-          v2.0
+          v3.0
         </span>
         <a
           href={GITHUB_URL}
@@ -1598,6 +1735,7 @@ const ToolView = ({ toolId, onBack, onComplete }) => {
     "Word Converter": DocxConverter,
     "Excel Converter":ExcelConverter,
     "Rotate PDF":     RotatePdf,
+    "Watermark PDF":  WatermarkPdf,
   }
   const Component = components[toolId]
   const toolMeta = TOOLS.find(t => t.id === toolId)
@@ -1778,7 +1916,7 @@ export default function App() {
         onToggleTheme={toggleTheme}
       />
 
-      {currentView === 'home' && <PageAura />}
+      {currentView === 'home' && <PageAura theme={theme} />}
 
       {/* Recent files slide-in sheet */}
       <RecentSheet open={recentOpen} onClose={() => setRecentOpen(false)} theme={theme} />

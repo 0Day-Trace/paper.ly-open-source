@@ -47,7 +47,7 @@ export default function UnlockPdf({ onBack, tool, onComplete }) {
   }
 
   return (
-    <ToolShell tool={tool} onBack={onBack}>
+    <ToolShell tool={tool} onBack={onBack} loading={loading} loadingLabel="Unlocking your PDF">
         <DropZone
           file={file}
           onFile={f => { setFile(f); setSuccess(false); setError('') }}
