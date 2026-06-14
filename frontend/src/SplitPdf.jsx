@@ -48,7 +48,7 @@ function PageButton({ page, active, accent, file, onToggle, firstThumbnail }) {
   const open = () => {
     if (btnRef.current) {
       const r = btnRef.current.getBoundingClientRect()
-      const cardW = 300
+      const cardW = isTouchDevice ? 200 : 300
       const x = Math.max(cardW / 2 + 8, Math.min(r.left + r.width / 2, window.innerWidth - cardW / 2 - 8))
       const above = r.top > 300
       setPos({ x, y: above ? r.top - 8 : r.bottom + 8, above })
@@ -103,13 +103,13 @@ function PageButton({ page, active, accent, file, onToggle, firstThumbnail }) {
               borderRadius: 12,
               padding: 8,
               boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
-              width: 300,
+              width: isTouchDevice ? 200 : 300,
               maxHeight: 'calc(100vh - 80px)',
               overflow: 'hidden',
               pointerEvents: isTouchDevice ? 'none' : 'auto',
             }}
           >
-            <div style={{ width: 284, borderRadius: 8, background: 'var(--surface-2)', overflow: 'hidden', lineHeight: 0 }}>
+            <div style={{ width: isTouchDevice ? 184 : 284, borderRadius: 8, background: 'var(--surface-2)', overflow: 'hidden', lineHeight: 0 }}>
               {thumb
                 ? <img
                     src={`data:image/jpeg;base64,${thumb}`}
