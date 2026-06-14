@@ -239,6 +239,44 @@ body {
   flex-shrink: 0;
 }
 
+@media (max-width: 560px) {
+  .reorder-row-body {
+    padding: 8px 8px 8px 10px;
+  }
+
+  .reorder-row-main {
+    gap: 8px;
+  }
+
+  .reorder-row-index {
+    font-size: 11px;
+    width: 20px;
+  }
+
+  .reorder-row-info-title {
+    font-size: 12px;
+  }
+
+  .reorder-row-info-meta {
+    font-size: 11px;
+  }
+
+  .reorder-action-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+  }
+
+  .reorder-action-btn svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .reorder-move-buttons {
+    gap: 3px;
+  }
+}
+
 @media (max-width: 480px) {
   .format-picker {
     flex-direction: column;
@@ -253,5 +291,14 @@ body {
 
   .format-picker-actions button {
     flex: 1;
+  }
+
+  .reorder-row-actions {
+    gap: 4px;
+  }
+
+  .reorder-action-btn {
+    width: 28px;
+    height: 28px;
   }
 }

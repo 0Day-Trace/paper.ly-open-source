@@ -395,9 +395,9 @@ function ColorPalette({ value, onChange, accent = ACCENT }) {
       key={key} type="button" title={title}
       onClick={onClick}
       style={{
-        width: 28, height: 28, borderRadius: '50%',
+        width: 24, height: 24, borderRadius: '50%',
         border: `2px solid ${on ? accent : 'transparent'}`,
-        padding: 2, cursor: 'pointer', background: 'transparent',
+        padding: 1.5, cursor: 'pointer', background: 'transparent',
         outline: 'none', flexShrink: 0,
         boxShadow: on ? `0 0 0 1px ${accent}` : '0 0 0 1px var(--border-strong)',
         transition: 'box-shadow 0.12s, border-color 0.12s',
@@ -412,40 +412,48 @@ function ColorPalette({ value, onChange, accent = ACCENT }) {
   )
 
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center',
-      background: 'var(--surface-2)', border: '1px solid var(--border)',
-      borderRadius: 12, padding: '6px 10px', gap: 4,
-      flexWrap: 'nowrap', overflowX: 'auto',
-    }}>
-      {COLOR_SWATCHES.map(c =>
-        swatchBtn(
-          c.hex, c.display, true, c.hex === value, c.label,
-          () => { onChange(c.hex); setShowWheel(false) }
-        )
-      )}
-      {/* divider */}
-      <div style={{ width: 1, height: 20, background: 'var(--border)', flexShrink: 0, margin: '0 2px' }} />
-      {/* custom / rainbow — anchor for popup */}
-      <div ref={wrapRef} style={{ flexShrink: 0 }}>
-        {swatchBtn(
-          'custom',
-          isCustom
-            ? customColor
-            : 'conic-gradient(hsl(0,90%,55%),hsl(60,90%,55%),hsl(120,90%,45%),hsl(180,90%,45%),hsl(240,90%,60%),hsl(300,90%,55%),hsl(360,90%,55%))',
-          false, isCustom, 'Custom color',
-          () => setShowWheel(true)
+    <>
+      <style>{`.wm-color-row::-webkit-scrollbar { display: none; }`}</style>
+      <div
+        className="wm-color-row"
+        style={{
+          display: 'flex', alignItems: 'center',
+          background: 'var(--surface-2)', border: '1px solid var(--border)',
+          borderRadius: 12, padding: '8px 10px', gap: 5,
+          flexWrap: 'nowrap', overflowX: 'auto',
+          scrollbarWidth: 'none', msOverflowStyle: 'none',
+          WebkitOverflowScrolling: 'touch',
+        }}
+      >
+        {COLOR_SWATCHES.map(c =>
+          swatchBtn(
+            c.hex, c.display, true, c.hex === value, c.label,
+            () => { onChange(c.hex); setShowWheel(false) }
+          )
         )}
-        {showWheel && (
-          <ColorWheelPopup
-            anchorRef={wrapRef}
-            value={isCustom ? value : '#6366F1'}
-            onChange={v => onChange(v)}
-            onClose={() => setShowWheel(false)}
-          />
-        )}
+        {/* divider */}
+        <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0, margin: '0 3px' }} />
+        {/* custom / rainbow — anchor for popup */}
+        <div ref={wrapRef} style={{ flexShrink: 0 }}>
+          {swatchBtn(
+            'custom',
+            isCustom
+              ? customColor
+              : 'conic-gradient(hsl(0,90%,55%),hsl(60,90%,55%),hsl(120,90%,45%),hsl(180,90%,45%),hsl(240,90%,60%),hsl(300,90%,55%),hsl(360,90%,55%))',
+            false, isCustom, 'Custom color',
+            () => setShowWheel(true)
+          )}
+          {showWheel && (
+            <ColorWheelPopup
+              anchorRef={wrapRef}
+              value={isCustom ? value : '#6366F1'}
+              onChange={v => onChange(v)}
+              onClose={() => setShowWheel(false)}
+            />
+          )}
+        </div>
       </div>
-    </div>
+    </>
   )
 }
 
@@ -1449,8 +1457,13 @@ export default function WatermarkPdf({ onBack, tool, onComplete }) {
             {/* ── Placement ── */}
             <Section title="Placement">
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {/* Position grid + pages side by side */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 20, alignItems: 'start' }}>
+                {/* Position grid + pages — side by side on desktop, stacked on mobile */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                  gap: 16,
+                  alignItems: 'start',
+                }}>
                   {/* Position grid */}
                   <div style={{ opacity: mosaic ? 0.35 : 1, pointerEvents: mosaic ? 'none' : 'auto', transition: 'opacity .15s' }}>
                     <span style={LBL}>Position</span>
@@ -1458,30 +1471,54 @@ export default function WatermarkPdf({ onBack, tool, onComplete }) {
                   </div>
 
                   {/* Pages */}
-                  <div>
+                  <div style={{ minWidth: 0 }}>
                     <span style={LBL}>Pages</span>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      {/* Filter: All / Odd / Even / Custom */}
-                      <PillGroup
-                        options={[
-                          {value:'all',label:'All'},
-                          {value:'odd',label:'Odd'},
-                          {value:'even',label:'Even'},
-                          {value:'custom',label:'Custom'}
-                        ]}
-                        value={pageFilter} 
-                        onChange={v => {
-                          setPageFilter(v)
-                          // Reset range when switching modes
-                          if (v !== 'custom') {
-                            setPageFrom(1)
-                            setPageFromStr('1')
-                            setPageTo(0)
-                            setPageToStr('')
-                          }
-                        }} 
-                        accent={A}
-                      />
+                      {/* Filter: All / Odd / Even / Custom — full width pill group on mobile */}
+                      <div style={{
+                        display: 'flex',
+                        background: 'var(--surface-2)',
+                        borderRadius: 10,
+                        border: '1px solid var(--border)',
+                        padding: 3,
+                        gap: 2,
+                        overflow: 'hidden',
+                      }}>
+                        {[
+                          { value: 'all',    label: 'All' },
+                          { value: 'odd',    label: 'Odd' },
+                          { value: 'even',   label: 'Even' },
+                          { value: 'custom', label: 'Custom' },
+                        ].map(o => {
+                          const on = o.value === pageFilter
+                          return (
+                            <button
+                              key={o.value} type="button"
+                              onClick={() => {
+                                setPageFilter(o.value)
+                                if (o.value !== 'custom') {
+                                  setPageFrom(1); setPageFromStr('1')
+                                  setPageTo(0);   setPageToStr('')
+                                }
+                              }}
+                              style={{
+                                flex: 1,
+                                height: 30, padding: '0 4px',
+                                border: 'none', borderRadius: 8, cursor: 'pointer',
+                                background: on ? 'var(--surface)' : 'transparent',
+                                color: on ? A : 'var(--text-3)',
+                                fontFamily: 'var(--font-ui)', fontSize: 12, fontWeight: on ? 700 : 500,
+                                boxShadow: on ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                                transition: 'all 0.15s',
+                                whiteSpace: 'nowrap',
+                                minWidth: 0,
+                              }}
+                            >
+                              {o.label}
+                            </button>
+                          )
+                        })}
+                      </div>
 
                       {/* Page range — only show for custom */}
                       {pageFilter === 'custom' && (

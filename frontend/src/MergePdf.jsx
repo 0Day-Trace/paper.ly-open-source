@@ -136,8 +136,8 @@ export default function MergePdf({ onBack, tool, onComplete }) {
           onDrop={handleDrop}
           style={{
             border: `1.5px dashed ${items.length ? 'var(--border-strong)' : 'var(--border-strong)'}`,
-            borderRadius: 20,
-            padding: '28px 22px',
+            borderRadius: 'clamp(14px, 4vw, 20px)',
+            padding: 'clamp(20px, 5vw, 28px) clamp(16px, 4vw, 22px)',
             background: items.length ? 'var(--surface)' : 'var(--dropzone-empty-bg)',
             cursor: 'pointer',
             position: 'relative',
@@ -155,22 +155,22 @@ export default function MergePdf({ onBack, tool, onComplete }) {
           />
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(10px, 3vw, 12px)' }}>
               <div style={{
-                width: 46, height: 46, borderRadius: 16,
+                width: 'clamp(40px, 10vw, 46px)', height: 'clamp(40px, 10vw, 46px)', borderRadius: 'clamp(12px, 3vw, 16px)',
                 background: 'var(--surface-2)',
                 border: `1px solid ${items.length ? 'var(--border)' : accent + '33'}`,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 color: items.length ? 'var(--text-3)' : accent,
                 transition: 'all 0.18s ease',
               }}>
-                <Upload size={20} strokeWidth={1.6} />
+                <Upload size={18} strokeWidth={1.6} />
               </div>
               <div>
-                <p style={{ fontSize: 15, fontWeight: 500, color: 'var(--text)', margin: 0 }}>
+                <p style={{ fontSize: 'clamp(13px, 3vw, 15px)', fontWeight: 500, color: 'var(--text)', margin: 0 }}>
                   Drop PDFs here or click to browse
                 </p>
-                <p style={{ fontSize: 13, fontWeight: 300, color: 'var(--text-3)', margin: '4px 0 0' }}>
+                <p style={{ fontSize: 'clamp(11px, 2.5vw, 13px)', fontWeight: 300, color: 'var(--text-3)', margin: '4px 0 0' }}>
                   {items.length ? `${items.length} files · ${formatSize(totalBytes)} total` : 'PDF files only'}
                 </p>
               </div>
@@ -183,9 +183,9 @@ export default function MergePdf({ onBack, tool, onComplete }) {
                 style={{
                   border: '1px solid var(--border)',
                   background: 'var(--surface)',
-                  borderRadius: 16,
-                  padding: '10px 14px',
-                  fontSize: 13,
+                  borderRadius: 'clamp(12px, 3vw, 16px)',
+                  padding: 'clamp(8px, 2vw, 10px) clamp(12px, 3vw, 14px)',
+                  fontSize: 'clamp(12px, 2.5vw, 13px)',
                   fontWeight: 400,
                   cursor: 'pointer',
                   color: 'var(--text-2)',

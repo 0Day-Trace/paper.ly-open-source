@@ -172,45 +172,32 @@ export default function ProtectPdf({ onBack, tool, onComplete }) {
           <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-2)', margin: 0 }}>Permissions</p>
 
           {/* Preset buttons */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: isMobile ? 6 : 8 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: isMobile ? 6 : 8 }}>
             {[
               { id: 'block_all', label: 'Block all', activeColor: '#DC2626', activeBg: 'rgba(220, 38, 38, 0.16)' },
               { id: 'allow_all', label: 'Allow all', activeColor: '#16A34A', activeBg: 'rgba(22, 163, 74, 0.16)' },
+              { id: 'custom', label: 'Custom', activeColor: accent, activeBg: 'var(--surface-2)', icon: 'custom' },
             ].map(p => {
               const isActive = preset === p.id
               return (
-                <button key={p.id} onClick={() => handlePreset(p.id)} style={{
-                  flex: 1, minWidth: 0, padding: '14px 12px', borderRadius: 'var(--radius-sm)',
+                <button key={p.id} onClick={() => p.id === 'custom' ? setPreset('custom') : handlePreset(p.id)} style={{
+                  flex: '1 1 calc(33.333% - 6px)', minWidth: isMobile ? '100px' : '120px', padding: '14px 12px', borderRadius: 'var(--radius-sm)',
                   border: `1px solid ${isActive ? p.activeColor + '44' : 'var(--border)'}`,
-                  background: isActive ? p.activeBg : 'var(--surface-2)',
+                  background: isActive ? (p.id === 'custom' ? 'var(--surface-2)' : p.activeBg) : 'var(--surface-2)',
                   color: isActive ? p.activeColor : 'var(--text-2)',
                   cursor: 'pointer', fontFamily: 'var(--font-ui)', fontSize: isMobile ? 12 : 15, fontWeight: 700,
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                   transition: 'all 0.15s', whiteSpace: isMobile ? 'normal' : 'nowrap',
                 }}>
                   <span style={presetIconBadge(isActive, p.activeColor)}>
-                    {p.id === 'block_all'
-                      ? <XCircle size={isMobile ? 14 : 18} strokeWidth={2.8} />
-                      : <CheckCircle2 size={isMobile ? 14 : 18} strokeWidth={2.8} />}
+                    {p.id === 'block_all' && <XCircle size={isMobile ? 14 : 18} strokeWidth={2.8} />}
+                    {p.id === 'allow_all' && <CheckCircle2 size={isMobile ? 14 : 18} strokeWidth={2.8} />}
+                    {p.id === 'custom' && <SlidersHorizontal size={isMobile ? 13 : 17} strokeWidth={2.8} />}
                   </span>
                   {p.label}
                 </button>
               )
             })}
-            {/* Custom — inline toggle */}
-            <button onClick={() => setPreset('custom')} style={{
-              flex: 1, minWidth: 0, padding: '14px 12px', borderRadius: 'var(--radius-sm)',
-              border: `1px solid ${preset === 'custom' ? accent + '44' : 'var(--border)'}`,
-              background: 'var(--surface-2)',
-              color: preset === 'custom' ? accent : 'var(--text-2)', whiteSpace: isMobile ? 'normal' : 'nowrap',
-              cursor: 'pointer', fontFamily: 'var(--font-ui)', fontSize: isMobile ? 12 : 15, fontWeight: 700,
-              transition: 'all 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-            }}>
-              <span style={presetIconBadge(preset === 'custom', accent)}>
-                <SlidersHorizontal size={isMobile ? 13 : 17} strokeWidth={2.8} />
-              </span>
-              Custom
-            </button>
           </div>
 
           {/* Custom permission grid */}

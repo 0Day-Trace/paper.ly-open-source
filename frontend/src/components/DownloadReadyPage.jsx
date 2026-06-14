@@ -245,11 +245,11 @@ export default function DownloadReadyPage({ data, onBackHome }) {
         <div style={{
           display: 'flex',
           gap: 14,
-          alignItems: isNarrow ? 'flex-start' : 'flex-start',
-          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          justifyContent: isNarrow ? 'center' : 'space-between',
           flexDirection: isNarrow ? 'column' : 'row',
         }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ flex: 1, minWidth: 0, textAlign: isNarrow ? 'center' : 'left' }}>
             <p style={{ margin: 0, fontSize: 14, color: 'var(--text-2)', fontWeight: 500 }}>Scan to download on any device</p>
             {countdownLabel ? (
               <p style={{ margin: '6px 0 0', fontSize: 13, color: '#0A84FF', fontWeight: 700, whiteSpace: 'normal', lineHeight: 1.35 }}>
@@ -262,8 +262,8 @@ export default function DownloadReadyPage({ data, onBackHome }) {
             )}
           </div>
           <div style={{
-            width: 140,
-            height: 140,
+            width: isNarrow ? 160 : 140,
+            height: isNarrow ? 160 : 140,
             border: '1px solid var(--border)',
             borderRadius: 12,
             background: 'white',
@@ -277,7 +277,7 @@ export default function DownloadReadyPage({ data, onBackHome }) {
             <img
               src={qrUrl}
               alt="Download QR code"
-              style={{ width: 124, height: 124, objectFit: 'contain' }}
+              style={{ width: isNarrow ? 144 : 124, height: isNarrow ? 144 : 124, objectFit: 'contain' }}
             />
           </div>
         </div>

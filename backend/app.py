@@ -212,8 +212,12 @@ def pagecount():
         try:
             if len(doc) == 0:
                 return jsonify({"error": "PDF has no pages"}), 400
-            pix = doc[0].get_pixmap(matrix=pymupdf.Matrix(0.3, 0.3))
-            thumb = base64.b64encode(pix.tobytes("png")).decode("utf-8")
+            page = doc[0]
+            # Render at 1200px wide — sharp enough, faster than 1800px
+            target_px = 1200
+            scale = target_px / page.rect.width
+            pix = page.get_pixmap(matrix=pymupdf.Matrix(scale, scale))
+            thumb = base64.b64encode(pix.tobytes("jpeg", jpg_quality=90)).decode("utf-8")
             count = len(doc)
             return jsonify({ "pages": count, "thumbnail": thumb })
         except Exception as e:
@@ -238,8 +242,12 @@ def page_thumbnail():
         try:
             if page_num < 1 or page_num > len(doc):
                 return jsonify({"error": f"Page {page_num} out of range (PDF has {len(doc)} pages)"}), 400
-            pix = doc[page_num - 1].get_pixmap(matrix=pymupdf.Matrix(0.5, 0.5))
-            return jsonify({ "thumbnail": base64.b64encode(pix.tobytes("png")).decode() })
+            page = doc[page_num - 1]
+            # Render at 1200px wide — sharp enough, faster than 1800px
+            target_px = 1200
+            scale = target_px / page.rect.width
+            pix = page.get_pixmap(matrix=pymupdf.Matrix(scale, scale))
+            return jsonify({ "thumbnail": base64.b64encode(pix.tobytes("jpeg", jpg_quality=90)).decode() })
         except Exception as e:
             return jsonify({"error": str(e)}), 500
         finally:

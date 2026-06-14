@@ -55,8 +55,8 @@ export default function DropZone({
       onDrop={handleDrop}
       style={{
         border: `1.5px ${active ? 'solid' : 'dashed'} ${active ? accent : 'var(--border-strong)'}`,
-        borderRadius: 20,
-        padding: file ? '20px 28px' : '44px 28px',
+        borderRadius: 'clamp(14px, 4vw, 20px)',
+        padding: file ? 'clamp(14px, 4vw, 20px) clamp(16px, 5vw, 28px)' : 'clamp(28px, 7vw, 44px) clamp(16px, 5vw, 28px)',
         textAlign: 'center',
         cursor: 'pointer',
         background: drag ? 'var(--surface-2)' : file ? 'var(--surface-2)' : 'var(--dropzone-empty-bg)',
@@ -90,11 +90,11 @@ export default function DropZone({
             exit={{ opacity: 0, scale: 0.96 }}
             transition={{ duration: 0.15 }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, justifyContent: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(10px, 3vw, 14px)', justifyContent: 'center', flexWrap: 'wrap' }}>
               <div style={{
-                width: 42,
-                height: 42,
-                borderRadius: 12,
+                width: 'clamp(36px, 9vw, 42px)',
+                height: 'clamp(36px, 9vw, 42px)',
+                borderRadius: 'clamp(10px, 2.5vw, 12px)',
                 background: 'var(--surface)',
                 border: `1px solid ${accent}33`,
                 display: 'flex',
@@ -102,17 +102,17 @@ export default function DropZone({
                 justifyContent: 'center',
                 flexShrink: 0,
               }}>
-                <File size={18} color={accent} strokeWidth={1.6} />
+                <File size={Math.min(18, Math.max(14, window.innerWidth / 25))} color={accent} strokeWidth={1.6} />
               </div>
               <div style={{ textAlign: 'left', minWidth: 0, flex: 1 }}>
                 <p style={{
-                  fontSize: 14, fontWeight: 500, color: 'var(--text)',
+                  fontSize: 'clamp(13px, 3vw, 14px)', fontWeight: 500, color: 'var(--text)',
                   margin: 0, overflow: 'hidden', textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap', maxWidth: '100%',
                 }}>
                   {trunc(file.name)}
                 </p>
-                <p style={{ fontSize: 12, color: 'var(--text-3)', margin: '3px 0 0', fontWeight: 300 }}>
+                <p style={{ fontSize: 'clamp(11px, 2.5vw, 12px)', color: 'var(--text-3)', margin: '3px 0 0', fontWeight: 300 }}>
                   {formatSz(file.size)} · click to change
                 </p>
               </div>
@@ -125,12 +125,12 @@ export default function DropZone({
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.96 }}
             transition={{ duration: 0.15 }}
-            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}
+            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'clamp(10px, 3vw, 14px)' }}
           >
             <div style={{
-              width: 52,
-              height: 52,
-              borderRadius: 16,
+              width: 'clamp(44px, 11vw, 52px)',
+              height: 'clamp(44px, 11vw, 52px)',
+              borderRadius: 'clamp(12px, 3vw, 16px)',
               background: 'var(--surface-2)',
               border: `1px solid ${drag ? accent : 'var(--border)'}`,
               display: 'flex',
@@ -138,13 +138,13 @@ export default function DropZone({
               justifyContent: 'center',
               transition: 'border-color 0.18s',
             }}>
-              <Upload size={22} color={accent} strokeWidth={1.5} />
+              <Upload size={Math.min(22, Math.max(18, window.innerWidth / 20))} color={accent} strokeWidth={1.5} />
             </div>
             <div>
-              <p style={{ fontSize: 15, fontWeight: 500, color: 'var(--text)', margin: '0 0 5px' }}>
+              <p style={{ fontSize: 'clamp(13px, 3vw, 15px)', fontWeight: 500, color: 'var(--text)', margin: '0 0 5px' }}>
                 Drop files here or click to browse
               </p>
-              <p style={{ fontSize: 13, color: 'var(--text-3)', margin: 0, fontWeight: 300 }}>
+              <p style={{ fontSize: 'clamp(12px, 2.5vw, 13px)', color: 'var(--text-3)', margin: 0, fontWeight: 300 }}>
                 {acceptLabel}
               </p>
             </div>

@@ -18,14 +18,17 @@ const truncateFilename = (name, max = 28) => {
   return base.slice(0, Math.ceil(keep / 2)) + '…' + base.slice(-Math.floor(keep / 2)) + ext
 }
 
-/* ─── Page button with lazy-loaded thumbnail tooltip ─── */
+/* ─── Page button with thumbnail tooltip ─── */
 function PageButton({ page, active, accent, file, onToggle, firstThumbnail }) {
-  const [hovered, setHovered] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
   const [thumb, setThumb] = useState(page === 1 ? firstThumbnail : null)
   const [loadingThumb, setLoadingThumb] = useState(false)
   const fetchedRef = useRef(page === 1 ? true : false)
+  const longPressTimer = useRef(null)
+  const hideTimer = useRef(null)
   const btnRef = useRef(null)
-  const [tooltipPos, setTooltipPos] = useState({ left: 0, top: 0 })
+  const [pos, setPos] = useState({ x: 0, y: 0, above: true })
+  const isTouchDevice = typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches
 
   const fetchThumb = useCallback(async () => {
     if (fetchedRef.current || !file) return
@@ -37,110 +40,97 @@ function PageButton({ page, active, accent, file, onToggle, firstThumbnail }) {
       fd.append('page', page)
       const res = await axios.post(`${API_BASE}/page-thumbnail`, fd, { timeout: 15000 })
       setThumb(res.data.thumbnail || null)
-    } catch {
-      /* silently fail */
-    } finally {
-      setLoadingThumb(false)
-    }
+    } catch { /* silently fail */ }
+    finally { setLoadingThumb(false) }
   }, [file, page])
 
-  const handleMouseEnter = () => {
-    setHovered(true)
+  const open = () => {
     if (btnRef.current) {
-      const rect = btnRef.current.getBoundingClientRect()
-      setTooltipPos({ left: rect.left + rect.width / 2, top: rect.top })
+      const r = btnRef.current.getBoundingClientRect()
+      const cardW = 300
+      const x = Math.max(cardW / 2 + 8, Math.min(r.left + r.width / 2, window.innerWidth - cardW / 2 - 8))
+      const above = r.top > 300
+      setPos({ x, y: above ? r.top - 8 : r.bottom + 8, above })
     }
+    setShowPreview(true)
     fetchThumb()
   }
 
+  const handleMouseEnter = () => { if (!isTouchDevice) { clearTimeout(hideTimer.current); open() } }
+  const handleMouseLeave = () => { if (!isTouchDevice) hideTimer.current = setTimeout(() => setShowPreview(false), 100) }
+  const handleTouchStart = () => { longPressTimer.current = setTimeout(open, 500) }
+  const handleTouchEnd = () => clearTimeout(longPressTimer.current)
+
   return (
-    <div style={{ position: 'relative' }}>
+    <>
       <button
         ref={btnRef}
         onClick={onToggle}
         onMouseEnter={handleMouseEnter}
-        onMouseLeave={() => setHovered(false)}
+        onMouseLeave={handleMouseLeave}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onTouchMove={handleTouchEnd}
         style={{
-          width: '100%',
-          height: 44,
-          borderRadius: 12,
+          width: '100%', height: 44, borderRadius: 12,
           border: `1.5px solid ${active ? accent : 'var(--border)'}`,
           background: active ? `${accent}18` : 'var(--surface-2)',
-          cursor: 'pointer',
-          fontSize: 13,
+          cursor: 'pointer', fontSize: 13,
           fontWeight: active ? 600 : 400,
           color: active ? accent : 'var(--text-2)',
-          transition: 'all 0.15s',
-          fontFamily: 'var(--font-ui)',
-          outline: 'none',
+          transition: 'all 0.15s', fontFamily: 'var(--font-ui)',
+          outline: 'none', WebkitTapHighlightColor: 'transparent', userSelect: 'none',
         }}
-      >
-        {page}
-      </button>
+      >{page}</button>
 
-      {/* Thumbnail tooltip — full page, no crop */}
-      {hovered && (
-        <div style={{
-          position: 'fixed',
-          left: tooltipPos.left,
-          top: tooltipPos.top - 12,
-          transform: 'translate(-50%, -100%)',
-          zIndex: 9999,
-          pointerEvents: 'none',
-        }}>
-          <div style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 10,
-            padding: 8,
-            boxShadow: '0 8px 24px rgba(0,0,0,0.22)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 5,
-          }}>
-            {thumb ? (
-              <img
-                src={`data:image/png;base64,${thumb}`}
-                alt={`Page ${page}`}
-                style={{
-                  width: 180,
-                  height: 'auto',
-                  display: 'block',
-                  borderRadius: 8,
-                  border: '1px solid var(--border)',
-                }}
-              />
-            ) : (
-              <div style={{
-                width: 180,
-                height: 234,
-                borderRadius: 8,
-                background: 'var(--surface-2)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                {loadingThumb
-                  ? <div style={{ width: 20, height: 20, border: '2px solid var(--border)', borderTopColor: accent, borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
-                  : <span style={{ fontSize: 12, color: 'var(--text-3)' }}>—</span>
-                }
-              </div>
-            )}
-            <span style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--font-ui)' }}>Page {page}</span>
+      {showPreview && (
+        <>
+          {isTouchDevice && (
+            <div onClick={() => setShowPreview(false)} style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'rgba(0,0,0,0.4)' }} />
+          )}
+          <div
+            onMouseEnter={() => { if (!isTouchDevice) clearTimeout(hideTimer.current) }}
+            onMouseLeave={isTouchDevice ? undefined : handleMouseLeave}
+            style={{
+              position: 'fixed',
+              left: pos.x,
+              top: pos.y,
+              transform: pos.above ? 'translate(-50%, -100%)' : 'translate(-50%, 0)',
+              zIndex: 9999,
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 12,
+              padding: 8,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+              width: 300,
+              maxHeight: 'calc(100vh - 80px)',
+              overflow: 'hidden',
+              pointerEvents: isTouchDevice ? 'none' : 'auto',
+            }}
+          >
+            <div style={{ width: 284, borderRadius: 8, background: 'var(--surface-2)', overflow: 'hidden', lineHeight: 0 }}>
+              {thumb
+                ? <img
+                    src={`data:image/jpeg;base64,${thumb}`}
+                    alt={`Page ${page}`}
+                    style={{
+                      width: '100%',
+                      height: 'auto',
+                      display: 'block',
+                    }}
+                  />
+                : loadingThumb
+                  ? <div style={{ width: 284, height: 290, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: 20, height: 20, border: '2px solid var(--border)', borderTopColor: accent, borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} /></div>
+                  : <div style={{ width: 284, height: 290, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontSize: 12, color: 'var(--text-3)' }}>—</span></div>
+              }
+            </div>
+            <p style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--text-3)', textAlign: 'center', fontFamily: 'var(--font-ui)' }}>Page {page}</p>
           </div>
-          <div style={{
-            width: 8, height: 8,
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderTop: 'none', borderLeft: 'none',
-            transform: 'rotate(45deg)',
-            margin: '-4px auto 0',
-          }} />
-        </div>
+        </>
       )}
-    </div>
+    </>
   )
 }
-
 export default function RemovePages({ onBack, tool, onComplete }) {
   const [file, setFile] = useState(null)
   const [pageCount, setPageCount] = useState(null)
@@ -301,7 +291,9 @@ export default function RemovePages({ onBack, tool, onComplete }) {
               boxShadow: 'var(--shadow-sm)',
             }}>
               <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 300, color: 'var(--text-3)' }}>
-                Hover to preview · click to select for removal
+                {window.matchMedia('(hover: none)').matches
+                  ? 'Tap to select · long press to preview'
+                  : 'Hover to preview · click to select for removal'}
               </p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(48px, 1fr))', gap: 6 }}>
                 {Array.from({ length: pageCount }, (_, i) => i + 1).map((p) => (

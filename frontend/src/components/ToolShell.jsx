@@ -247,12 +247,12 @@ export default function ToolShell({ tool, onBack, children, loading = false, loa
           transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
           style={{ marginBottom: 36 }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(10px, 3vw, 16px)', flexWrap: 'wrap' }}>
             {tool && (
               <div style={{
-                width: 56,
-                height: 56,
-                borderRadius: 16,
+                width: 'clamp(42px, 12vw, 56px)',
+                height: 'clamp(42px, 12vw, 56px)',
+                borderRadius: 'clamp(10px, 3vw, 16px)',
                 background: isDark ? `${accent}20` : 'var(--surface-2)',
                 border: `1px solid ${accent}33`,
                 display: 'flex',
@@ -261,27 +261,27 @@ export default function ToolShell({ tool, onBack, children, loading = false, loa
                 flexShrink: 0,
                 boxShadow: `0 4px 12px ${accent}28`,
               }}>
-                {Icon && <Icon size={26} color={accent} strokeWidth={1.5} />}
+                {Icon && <Icon size={Math.min(24, Math.max(18, window.innerWidth / 22))} color={accent} strokeWidth={1.5} />}
               </div>
             )}
-            <div>
+            <div style={{ minWidth: 0 }}>
               <h1 style={{
                 fontFamily: 'var(--font-display)',
-                fontSize: 'clamp(26px, 4vw, 40px)',
+                fontSize: 'clamp(20px, 5vw, 40px)',
                 fontWeight: 400,
                 color: 'var(--text)',
                 letterSpacing: '-0.02em',
                 lineHeight: 1.1,
-                margin: '0 0 6px',
+                margin: '0 0 clamp(3px, 1vw, 6px)',
               }}>
                 {tool?.label}
               </h1>
               <p style={{
-                fontSize: 15,
+                fontSize: 'clamp(12px, 3vw, 15px)',
                 color: 'var(--text-2)',
                 fontWeight: 300,
                 margin: 0,
-                lineHeight: 1.5,
+                lineHeight: 1.45,
               }}>
                 {tool?.desc}
               </p>

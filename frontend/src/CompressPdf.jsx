@@ -82,32 +82,34 @@ export default function CompressPdf({ onBack, tool, onComplete }) {
               background: 'var(--surface)',
               border: `1px solid ${accent}33`,
               borderRadius: 'var(--radius)',
-              padding: '16px 20px',
+              padding: 'clamp(14px, 4vw, 16px) clamp(16px, 4vw, 20px)',
               display: 'flex',
               alignItems: 'center',
-              gap: 16,
+              gap: 'clamp(12px, 3vw, 16px)',
+              flexWrap: 'wrap',
+              justifyContent: 'center',
             }}
           >
-            <div style={{ flex: 1, textAlign: 'center' }}>
-              <p style={{ fontSize: 12, color: 'var(--text-3)', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Original</p>
-              <p style={{ fontSize: 18, color: 'var(--text)', fontWeight: 500, margin: 0 }}>{formatSize(result.originalSize)}</p>
+            <div style={{ flex: '1 1 100px', textAlign: 'center', minWidth: 80 }}>
+              <p style={{ fontSize: 11, color: 'var(--text-3)', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Original</p>
+              <p style={{ fontSize: 'clamp(16px, 4vw, 18px)', color: 'var(--text)', fontWeight: 500, margin: 0 }}>{formatSize(result.originalSize)}</p>
             </div>
-            <div style={{ fontSize: 18, color: 'var(--text-3)' }}>→</div>
-            <div style={{ flex: 1, textAlign: 'center' }}>
-              <p style={{ fontSize: 12, color: 'var(--text-3)', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Compressed</p>
-              <p style={{ fontSize: 18, color: accent, fontWeight: 500, margin: 0 }}>{formatSize(result.compressedSize)}</p>
+            <div style={{ fontSize: 'clamp(16px, 4vw, 18px)', color: 'var(--text-3)' }}>→</div>
+            <div style={{ flex: '1 1 100px', textAlign: 'center', minWidth: 80 }}>
+              <p style={{ fontSize: 11, color: 'var(--text-3)', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Compressed</p>
+              <p style={{ fontSize: 'clamp(16px, 4vw, 18px)', color: accent, fontWeight: 500, margin: 0 }}>{formatSize(result.compressedSize)}</p>
             </div>
             {savings !== null && (
               <div style={{
                 background: 'var(--surface-2)',
                 border: `1px solid ${accent}44`,
                 borderRadius: 12,
-                padding: '8px 16px',
+                padding: '8px 14px',
                 textAlign: 'center',
                 flexShrink: 0,
               }}>
-                <p style={{ color: accent, fontSize: 16, fontWeight: 600, margin: 0 }}>-{savings}%</p>
-                <p style={{ fontSize: 11, color: accent, margin: '2px 0 0', opacity: 0.7 }}>saved</p>
+                <p style={{ color: accent, fontSize: 'clamp(14px, 4vw, 16px)', fontWeight: 600, margin: 0 }}>-{savings}%</p>
+                <p style={{ fontSize: 10, color: accent, margin: '2px 0 0', opacity: 0.7 }}>saved</p>
               </div>
             )}
           </motion.div>
