@@ -1,14 +1,14 @@
 {
-  "deployment": "selfhost",
-  "organizationName": "GNX",
-  "apiBaseUrl": "http://localhost:5000",
+  "deployment": "official",
+  "organizationName": "paper.ly",
+  "apiBaseUrl": "https://paper-ly.onrender.com",
   "officialApiUrl": "https://paper-ly.onrender.com",
   "githubUrl": "https://github.com/0Day-Trace/paper.ly-open-source",
   "limits": {
     "enabled": true,
-    "maxFileSizeMb": null,
+    "maxFileSizeMb": 50,
     "dailyFileLimit": null,
-    "retentionHours": 3
+    "retentionHours": null
   },
   "advanced": {
     "flaskUploadLimitMb": 210,
