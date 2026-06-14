@@ -1761,7 +1761,14 @@ export default function App() {
   const toolsRef = useRef(null)
   const toolsScrollTargetRef = useRef(null)
   const cachedToolsScrollTopRef = useRef(0)
-  const [theme, setTheme] = useState(() => localStorage.getItem('paperly_theme') || 'light')
+  const [theme, setTheme] = useState(() => {
+    // If user manually picked a theme before, honour it.
+    // Otherwise default to the OS preference.
+    const saved = localStorage.getItem('paperly_theme')
+    const manual = localStorage.getItem('paperly_theme_manual')
+    if (saved && manual) return saved
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  })
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 520)
   const suppressNextHistoryPushRef = useRef(false)
 
@@ -1782,7 +1789,29 @@ export default function App() {
     localStorage.setItem('paperly_theme', theme)
   }, [theme])
 
-  const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))
+  // Follow OS theme changes — only when the user hasn't manually overridden
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const handler = (e) => {
+      // If the stored value was set by the OS detection (not a manual toggle),
+      // keep following the OS. We detect this by checking if stored value
+      // matches what the OS currently reports before the change.
+      const stored = localStorage.getItem('paperly_theme_manual')
+      if (!stored) {
+        setTheme(e.matches ? 'dark' : 'light')
+      }
+    }
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+
+  const toggleTheme = () => {
+    setTheme((t) => {
+      const next = t === 'dark' ? 'light' : 'dark'
+      localStorage.setItem('paperly_theme_manual', '1')
+      return next
+    })
+  }
 
   const currentView = downloadReady ? 'download' : activeTool ? 'tool' : 'home'
 
