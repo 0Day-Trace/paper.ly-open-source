@@ -1,0 +1,26 @@
+{
+  "deployment": "official",
+  "organizationName": "paper.ly",
+  "apiBaseUrl": "https://paper-ly.onrender.com",
+  "officialApiUrl": "https://paper-ly.onrender.com",
+  "githubUrl": "https://github.com/0Day-Trace/paper.ly-open-source",
+  "limits": {
+    "enabled": true,
+    "maxFileSizeMb": 50,
+    "dailyFileLimit": null,
+    "retentionHours": null
+  },
+  "advanced": {
+    "flaskUploadLimitMb": 210,
+    "sofficeTimeoutSeconds": 120,
+    "compressPresets": {
+      "screen":  { "quality": 40, "maxDpi": 96  },
+      "ebook":   { "quality": 75, "maxDpi": 150 },
+      "printer": { "quality": 80, "maxDpi": 200 }
+    }
+  },
+  "ui": {
+    "organizationAccent": "#D97706",
+    "selfhostAccent": "#0D9488"
+  }
+}
